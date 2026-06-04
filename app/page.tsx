@@ -4,14 +4,6 @@ import { useState } from "react";
 import { CATEGORIES, INGREDIENTS, TRIED_TAGS } from "@/lib/vocab";
 import type { SearchResponse } from "@/lib/types";
 
-const EXAMPLES = [
-  "a soup with chicken and pasta",
-  "italian eggplant dishes",
-  "guest-worthy desserts I haven't tried",
-  "quick vegetarian salads",
-  "spicy seafood mains",
-];
-
 export default function Home() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
@@ -64,11 +56,6 @@ export default function Home() {
     runSearch(query);
   }
 
-  function pickExample(ex: string) {
-    setQuery(ex);
-    runSearch(ex);
-  }
-
   function clearFilters() {
     setCategory("");
     setIngredient("");
@@ -103,19 +90,6 @@ export default function Home() {
             {loading ? "Searching…" : "Search"}
           </button>
         </form>
-
-        <div className="examples">
-          {EXAMPLES.map((ex) => (
-            <button
-              key={ex}
-              type="button"
-              className="chip"
-              onClick={() => pickExample(ex)}
-            >
-              {ex}
-            </button>
-          ))}
-        </div>
 
         <div className="filters">
           <select value={category} onChange={(e) => setCategory(e.target.value)}>
