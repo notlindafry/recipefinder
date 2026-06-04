@@ -16,10 +16,25 @@ const MAX_CANDIDATES = 220;
 // How many final results to return.
 const MAX_RESULTS = 48;
 
+/**
+ * Resolve the API key from any of the commonly-used variable names, so it works
+ * whether you named the secret ANTHROPIC_API_KEY (the standard) or something
+ * like CLAUDE_API_KEY / claude_api_key.
+ */
+function resolveApiKey(): string | undefined {
+  return (
+    process.env.ANTHROPIC_API_KEY ||
+    process.env.CLAUDE_API_KEY ||
+    process.env.claude_api_key ||
+    undefined
+  );
+}
+
 let client: Anthropic | null = null;
 function getClient(): Anthropic | null {
-  if (!process.env.ANTHROPIC_API_KEY) return null;
-  if (!client) client = new Anthropic();
+  const apiKey = resolveApiKey();
+  if (!apiKey) return null;
+  if (!client) client = new Anthropic({ apiKey });
   return client;
 }
 
