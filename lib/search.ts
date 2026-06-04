@@ -199,10 +199,11 @@ function filterAndScore(
       spec.excludeIngredients.some((x) => r.ingredients.some((i) => eq(i, x)))
     )
       continue;
-    // UI ingredient picks are required (every selected one must be present).
+    // UI ingredient picks: keep recipes matching ANY selected ingredient (OR),
+    // matching how multi-select filter facets normally behave.
     if (
       uiIngredients.length &&
-      !uiIngredients.every((x) => r.ingredients.some((i) => eq(i, x)))
+      !uiIngredients.some((x) => r.ingredients.some((i) => eq(i, x)))
     )
       continue;
 
@@ -358,7 +359,7 @@ function keywordSearch(
       continue;
     if (
       ui?.ingredients?.length &&
-      !ui.ingredients.every((x) => r.ingredients.some((i) => eq(i, x)))
+      !ui.ingredients.some((x) => r.ingredients.some((i) => eq(i, x)))
     )
       continue;
 

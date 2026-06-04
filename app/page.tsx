@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { CATEGORIES, INGREDIENTS, TRIED_TAGS } from "@/lib/vocab";
 import type { SearchResponse } from "@/lib/types";
+import MultiSelect from "./components/MultiSelect";
 
 export default function Home() {
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("");
-  const [ingredient, setIngredient] = useState("");
-  const [triedTag, setTriedTag] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
+  const [ingredients, setIngredients] = useState<string[]>([]);
+  const [triedTags, setTriedTags] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState<SearchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -24,11 +25,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           query: q,
-          filters: {
-            categories: category ? [category] : [],
-            ingredients: ingredient ? [ingredient] : [],
-            triedTags: triedTag ? [triedTag] : [],
-          },
+          filters: { categories, ingredients, triedTags },
         }),
       });
       if (res.status === 401) {
@@ -57,9 +54,9 @@ export default function Home() {
   }
 
   function clearFilters() {
-    setCategory("");
-    setIngredient("");
-    setTriedTag("");
+    setCategories([]);
+    setIngredients([]);
+    setTriedTags([]);
   }
 
   async function logout() {
@@ -70,7 +67,8 @@ export default function Home() {
     }
   }
 
-  const hasFilters = category || ingredient || triedTag;
+  const hasFilters =
+    categories.length > 0 || ingredients.length > 0 || triedTags.length > 0;
 
   return (
     <div className="wrap">
@@ -92,35 +90,26 @@ export default function Home() {
         </form>
 
         <div className="filters">
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="">Any category</option>
-            {CATEGORIES.filter((c) => c !== "I don't know").map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <select
-            value={ingredient}
-            onChange={(e) => setIngredient(e.target.value)}
-          >
-            <option value="">Any main ingredient</option>
-            {INGREDIENTS.filter(
+          <MultiSelect
+            label="Any category"
+            options={CATEGORIES.filter((c) => c !== "I don't know")}
+            selected={categories}
+            onChange={setCategories}
+          />
+          <MultiSelect
+            label="Any main ingredient"
+            options={INGREDIENTS.filter(
               (i) => i !== "I don't know" && i !== "N/A" && i !== "Other",
-            ).map((i) => (
-              <option key={i} value={i}>
-                {i}
-              </option>
-            ))}
-          </select>
-          <select value={triedTag} onChange={(e) => setTriedTag(e.target.value)}>
-            <option value="">Any verdict</option>
-            {TRIED_TAGS.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
+            )}
+            selected={ingredients}
+            onChange={setIngredients}
+          />
+          <MultiSelect
+            label="Any verdict"
+            options={TRIED_TAGS}
+            selected={triedTags}
+            onChange={setTriedTags}
+          />
           {hasFilters && (
             <button type="button" className="clear" onClick={clearFilters}>
               Clear filters
@@ -201,7 +190,7 @@ export default function Home() {
 
         {!loading && !data && !error && !searched && (
           <div className="empty">
-            Try a search above, or tap an example to get started.
+            Search above, or use the filters, to get started.
           </div>
         )}
       </main>
