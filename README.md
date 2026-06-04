@@ -91,9 +91,37 @@ rotate it at <https://console.anthropic.com/>.
 
 1. Push this repo to GitHub.
 2. Import it at <https://vercel.com/new>.
-3. Add the same environment variables (`SHEET_CSV_URL`, `ANTHROPIC_API_KEY`, …) in the
-   Vercel project settings.
+3. Add these environment variables in the Vercel project settings (Production scope):
+   `APP_PASSWORD`, `SESSION_SECRET`, `SHEET_CSV_URL`, and your Anthropic key
+   (`ANTHROPIC_API_KEY` / `CLAUDE_API_KEY`). **Without `APP_PASSWORD` and
+   `SESSION_SECRET` the app fails closed and no one — including you — can log in.**
 4. Deploy. You'll get a URL you can open on your phone and add to your home screen.
+
+---
+
+## Security
+
+The app is private by design:
+
+- **Password gate.** Every page and API route is blocked by middleware until you log in
+  with `APP_PASSWORD`. Sessions are signed JWTs (HS256, signed with `SESSION_SECRET`)
+  stored in an **httpOnly, Secure, SameSite=Lax** cookie that JavaScript can't read.
+  Passwords are compared in constant time. Set `SESSION_SECRET` to a long random string
+  (`openssl rand -base64 32`).
+- **Abuse protection.** Per-IP rate limiting on login (brute force) and search
+  (Claude-cost), a 300-character query cap, and filter-size caps. *(Rate limiting is
+  in-memory/best-effort per serverless instance; for strict global limits, back it with
+  Upstash Redis — see `lib/ratelimit.ts`.)*
+- **CSRF.** State-changing POSTs (`/api/login`, `/api/search`) require a same-origin
+  `Origin`/`Referer`, on top of the SameSite cookie.
+- **Hardened headers.** Every response carries a nonce-based Content-Security-Policy,
+  `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`,
+  `Permissions-Policy`, and HSTS.
+- **Secrets stay server-side.** The Anthropic key is only ever read on the server; it is
+  never sent to the browser.
+
+If you ever think a credential leaked, rotate `APP_PASSWORD` / `SESSION_SECRET` (which
+also invalidates all existing sessions) and your Anthropic key.
 
 ---
 

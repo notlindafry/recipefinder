@@ -15,6 +15,11 @@ export const metadata: Metadata = {
     "Search your cookbook catalogue in plain English — find recipes by dish, ingredient, cuisine, or mood.",
 };
 
+// Render dynamically so the per-request CSP nonce (set in middleware) is applied
+// to script tags. Static prerendering would bake in HTML without the nonce,
+// causing the browser to block the page's scripts.
+export const dynamic = "force-dynamic";
+
 export default function RootLayout({
   children,
 }: {

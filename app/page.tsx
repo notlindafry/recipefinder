@@ -39,6 +39,11 @@ export default function Home() {
           },
         }),
       });
+      if (res.status === 401) {
+        // Session expired — send back to login.
+        window.location.href = "/login";
+        return;
+      }
       const json = await res.json();
       if (!res.ok) {
         setError(json.error || "Search failed.");
@@ -68,6 +73,14 @@ export default function Home() {
     setCategory("");
     setIngredient("");
     setTriedTag("");
+  }
+
+  async function logout() {
+    try {
+      await fetch("/api/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/login";
+    }
   }
 
   const hasFilters = category || ingredient || triedTag;
@@ -221,6 +234,10 @@ export default function Home() {
 
       <footer className="foot">
         Searches your live Google Sheet · powered by Claude
+        <br />
+        <button type="button" className="logout" onClick={logout}>
+          Log out
+        </button>
       </footer>
     </div>
   );
