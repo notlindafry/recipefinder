@@ -35,13 +35,48 @@ export function columnLetter(index0: number): string {
 
 let cachedToken: { token: string; exp: number } | null = null;
 
+/**
+ * Robustly normalize the GOOGLE_PRIVATE_KEY env var into a real PKCS#8 PEM.
+ * Handles every common copy/paste mishap from a service-account JSON file.
+ */
+function normalizePrivateKey(raw: string): string {
+  let pem = raw.trim();
+  // Strip surrounding double or single quotes if accidentally included.
+  if (
+    (pem.startsWith('"') && pem.endsWith('"')) ||
+    (pem.startsWith("'") && pem.endsWith("'"))
+  ) {
+    pem = pem.slice(1, -1).trim();
+  }
+  // Convert escaped sequences to real characters (handles the JSON-string form
+  // "\\n" as well as a single backslash-n), then normalize CRLF to LF.
+  pem = pem.replace(/\\r\\n/g, "\n").replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
+  return pem;
+}
+
 async function getAccessToken(): Promise<string> {
   const now = Math.floor(Date.now() / 1000);
   if (cachedToken && cachedToken.exp - 60 > now) return cachedToken.token;
 
   const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL!;
-  const pem = process.env.GOOGLE_PRIVATE_KEY!.replace(/\\n/g, "\n");
-  const key = await importPKCS8(pem, "RS256");
+  const pem = normalizePrivateKey(process.env.GOOGLE_PRIVATE_KEY!);
+
+  if (!/-----BEGIN PRIVATE KEY-----/.test(pem) || !/-----END PRIVATE KEY-----/.test(pem)) {
+    throw new Error(
+      "GOOGLE_PRIVATE_KEY is malformed: missing BEGIN/END PRIVATE KEY lines. " +
+        "Paste the entire private_key value from your service-account JSON file.",
+    );
+  }
+
+  let key;
+  try {
+    key = await importPKCS8(pem, "RS256");
+  } catch {
+    throw new Error(
+      "GOOGLE_PRIVATE_KEY could not be parsed. In Vercel, paste the value " +
+        "of the private_key field from your service-account JSON file (no surrounding quotes).",
+    );
+  }
 
   const assertion = await new SignJWT({ scope: SCOPE })
     .setProtectedHeader({ alg: "RS256", typ: "JWT" })
