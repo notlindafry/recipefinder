@@ -26,6 +26,21 @@ If no API key is configured, the app gracefully falls back to keyword search.
 
 ---
 
+## Features
+
+- **Natural-language search** with a fast local pre-filter + Claude rerank.
+- **Plan a menu** — Claude composes a balanced multi-course menu from your books.
+- **Surprise me** — a random pick (respecting your filters) for "what's for dinner."
+- **Want to make** — one tap to surface everything tagged "I really want to make this."
+- **More like this** — on any result, find related recipes.
+- **Filters** — category, main ingredient, verdict, book, author, exclude-ingredient,
+  cuisine (when pre-tagged), "not tried yet," and "has a link." All multi-select.
+- **Installable (PWA)** — add it to your phone's home screen.
+- **Password-protected** with rate limiting, CSRF protection, and hardened headers.
+- **Optional write-back** — set a verdict or prep note from the app (see below).
+
+---
+
 ## One-time setup
 
 ### 1. Publish your sheet as CSV
@@ -122,6 +137,33 @@ The app is private by design:
 
 If you ever think a credential leaked, rotate `APP_PASSWORD` / `SESSION_SECRET` (which
 also invalidates all existing sessions) and your Anthropic key.
+
+---
+
+## Optional: write-back and cuisine tagging
+
+**Write-back** (set a verdict / prep note from the app) is read-only until you configure
+a Google service account:
+
+1. In Google Cloud, create a service account and enable the **Google Sheets API**.
+2. Share your sheet with the service account's email as an **Editor**.
+3. Set `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_PRIVATE_KEY`, `SHEET_ID`, and
+   `SHEET_TAB_NAME` (see `.env.example`).
+
+Writes are validated (verdict must be from your tag list; notes capped) and use a
+safety check: before writing, the server re-reads the recipe-name cell on that row and
+refuses if it no longer matches — so a row-mapping drift can never overwrite the wrong
+recipe. Writes use `RAW` mode, so a note starting with `=` is stored as text, not a
+formula. (Assumes the recipe tab has a single header row at row 1.)
+
+**Cuisine filter:** run the tagger once to label every recipe's cuisine with Claude:
+
+```bash
+SHEET_CSV_URL=... ANTHROPIC_API_KEY=... node scripts/tag-cuisines.mjs
+```
+
+This writes `data/cuisines.json`; commit it, and the app shows a **Cuisine** filter.
+Re-run after adding lots of recipes.
 
 ---
 
