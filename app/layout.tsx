@@ -10,9 +10,9 @@ const sans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Recipe Finder",
+  title: "Linda's Cookbook Collection Recipe Search",
   description:
-    "Search your cookbook catalogue in plain English — find recipes by dish, ingredient, cuisine, or mood.",
+    "Search Linda's cookbook collection in plain English — find recipes by dish, ingredient, cuisine, or mood.",
 };
 
 // Render dynamically so the per-request CSP nonce (set in middleware) is applied

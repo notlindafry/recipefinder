@@ -37,7 +37,7 @@ function LoginForm() {
   return (
     <div className="login-wrap">
       <div className="login-card">
-        <h1>Recipe Finder</h1>
+        <h1>Linda&apos;s Cookbook Collection</h1>
         <p className="login-sub">Enter your password to continue.</p>
         <form onSubmit={onSubmit}>
           <input
