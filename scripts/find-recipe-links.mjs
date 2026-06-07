@@ -316,9 +316,11 @@ You are given a recipe name, its cookbook title and author, and a numbered list 
 
 1. It is a single, complete RECIPE PAGE for that same dish — a page that gives the ingredients and method. It is NOT a recipe roundup or collection, a category/index/landing page, a "cookbook club" or book-review/announcement page, a techniques/tips article, a news or blog post that merely mentions the book, or a store/product/book-sales page.
 2. The dish matches the given recipe name (the same dish, allowing for minor wording differences).
-3. It is specifically THAT cookbook's version: reproduced or excerpted from that book, the author's own posting of it, or a page that explicitly attributes this exact recipe to that book or its author.
+3. It is tied to THIS source by EITHER the cookbook OR the author (either alone is sufficient): reproduced or excerpted from that book, the author's own posting of the recipe, or a page that attributes this dish to that book or to that author.
 
-Be strict. A generic recipe for the same dish with no connection to that book or author is NOT a match. A page that is about the book but is not itself the recipe is NOT a match. When several qualify, prefer the most authoritative (the author or publisher over a third-party blog). If none clearly qualify, return -1.`;
+Treat accented characters, transliterations, and minor punctuation or spelling variations as equivalent (e.g. "crème" = "creme", "é" = "e", "Café" = "Cafe").
+
+Be strict on points 1 and 2: a generic recipe for the same dish with no connection to that book or author is NOT a match, and a page that is merely about the book but is not itself the recipe is NOT a match. When several qualify, prefer the most authoritative (the author or publisher over a third-party blog). If none clearly qualify, return -1.`;
 
 const VERIFY_SCHEMA = {
   type: "object",
@@ -504,17 +506,23 @@ async function main() {
   for (let i = 0; i < total; i++) {
     const { rowNum, name, book, author } = toSearch[i];
 
-    // Query the recipe name + book title (quoted) + author, to surface pages
-    // that attribute the recipe to that specific cookbook.
-    const queryParts = [`"${name}"`, `"${book}"`];
-    if (author) queryParts.push(author);
-    const query = queryParts.join(" ") + " recipe";
+    // Quote only the recipe name (keeps the dish exact); keep the book and
+    // author UNQUOTED so Google doesn't require the full book-title string.
+    const primary = [`"${name}"`, author, book, "recipe"]
+      .filter(Boolean).join(" ");
+    // Fallback: name + author only (drops the book entirely), to surface pages
+    // the author posted or that attribute the dish to them without naming the book.
+    const fallback = author ? [`"${name}"`, author, "recipe"].join(" ") : null;
 
     process.stdout.write(`[${i + 1}/${total}] ${name}… `);
 
     try {
-      const results = await runSearch(query);
-      const url     = await pickUrl(results, { name, book, author });
+      let results = await runSearch(primary);
+      let url     = await pickUrl(results, { name, book, author });
+      if (!url && fallback) {
+        results = await runSearch(fallback);
+        url     = await pickUrl(results, { name, book, author });
+      }
 
       if (url) {
         const host = new URL(url).hostname.replace(/^www\./, "");
