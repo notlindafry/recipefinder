@@ -29,8 +29,11 @@
 //  Defaults to claude-haiku-4-5; override with ANTHROPIC_MODEL.
 //
 //  Google Sheets write-back (same service account used by the app's write-back)
-//  - Share your sheet with the service account as an Editor.
-//    Set GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, SHEET_ID, SHEET_TAB_NAME.
+//  - Share your sheet with the service account as an Editor, and set
+//    SHEET_ID + SHEET_TAB_NAME.
+//  - For credentials, easiest is to point at the downloaded JSON key file:
+//      GOOGLE_SERVICE_ACCOUNT_FILE=/path/to/service-account.json
+//    (or set GOOGLE_SERVICE_ACCOUNT_EMAIL + GOOGLE_PRIVATE_KEY individually).
 //
 // ── Usage ─────────────────────────────────────────────────────────────────────
 //
@@ -53,6 +56,7 @@
 //  --any-domain  Accept any domain at all (even the junk blocklist).
 
 import Papa from "papaparse";
+import { readFileSync } from "node:fs";
 import { SignJWT, importPKCS8 } from "jose";
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -72,10 +76,27 @@ const SHEET_CSV_URL = process.env.SHEET_CSV_URL;
 const SERPER_KEY    = process.env.SERPER_API_KEY;
 const CSE_KEY       = process.env.GOOGLE_CSE_API_KEY;
 const CSE_CX        = process.env.GOOGLE_CSE_CX;
-const SVC_EMAIL     = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
-const PRIVATE_KEY   = process.env.GOOGLE_PRIVATE_KEY;
 const SHEET_ID      = process.env.SHEET_ID;
 const TAB_NAME      = process.env.SHEET_TAB_NAME;
+
+// Service-account credentials. Easiest: point GOOGLE_SERVICE_ACCOUNT_FILE (or
+// the standard GOOGLE_APPLICATION_CREDENTIALS) at the JSON file you downloaded
+// from Google — no need to paste the multi-line private key into .env at all.
+// The file, when present, takes precedence over the individual env vars.
+let SVC_EMAIL   = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+let PRIVATE_KEY = process.env.GOOGLE_PRIVATE_KEY;
+const SVC_FILE =
+  process.env.GOOGLE_SERVICE_ACCOUNT_FILE || process.env.GOOGLE_APPLICATION_CREDENTIALS;
+if (SVC_FILE) {
+  try {
+    const sa = JSON.parse(readFileSync(SVC_FILE, "utf8"));
+    SVC_EMAIL = sa.client_email || SVC_EMAIL;
+    PRIVATE_KEY = sa.private_key || PRIVATE_KEY;
+  } catch (e) {
+    console.error(`Error: could not read GOOGLE_SERVICE_ACCOUNT_FILE (${SVC_FILE}): ${e.message}`);
+    process.exit(1);
+  }
+}
 const ANTHROPIC_KEY =
   process.env.ANTHROPIC_API_KEY ||
   process.env.CLAUDE_API_KEY ||
