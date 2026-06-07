@@ -6,30 +6,36 @@
 //
 // ── Setup (one-time) ──────────────────────────────────────────────────────────
 //
-//  Google Custom Search API
-//  1. console.cloud.google.com → enable "Custom Search API" → Credentials →
-//     Create API key → copy it as GOOGLE_CSE_API_KEY
-//  2. programmablesearchengine.google.com → New search engine →
-//     "Search the entire web" → Create → copy the Search engine ID as GOOGLE_CSE_CX
+//  Search provider — pick ONE:
 //
-//  Free quota: 100 queries/day. Enable billing + pay $5/1,000 to go higher.
-//  At $5/1,000 a batch of 2,500 missing links costs ~$12.50.
+//  A) Serper.dev (recommended — simplest, no Google Cloud project needed)
+//     1. Sign up at https://serper.dev → copy your API key as SERPER_API_KEY.
+//        Free signup includes 2,500 one-time credits (1 credit = 1 search).
+//
+//  B) Google Custom Search API (fallback, more setup)
+//     1. console.cloud.google.com → enable "Custom Search API" → Credentials →
+//        Create API key → copy it as GOOGLE_CSE_API_KEY
+//     2. programmablesearchengine.google.com → New search engine → create →
+//        copy the Search engine ID as GOOGLE_CSE_CX
+//     Free quota 100/day; needs billing for more.
+//
+//  The script uses Serper if SERPER_API_KEY is set, else Google CSE.
 //
 //  Google Sheets write-back (same service account used by the app's write-back)
-//  3. Share your sheet with the service account as an Editor.
-//     Set GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, SHEET_ID, SHEET_TAB_NAME.
+//  - Share your sheet with the service account as an Editor.
+//    Set GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, SHEET_ID, SHEET_TAB_NAME.
 //
 // ── Usage ─────────────────────────────────────────────────────────────────────
 //
 //  SHEET_CSV_URL=...
-//  GOOGLE_CSE_API_KEY=...  GOOGLE_CSE_CX=...
+//  SERPER_API_KEY=...                       (or GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX)
 //  GOOGLE_SERVICE_ACCOUNT_EMAIL=...  GOOGLE_PRIVATE_KEY=...
 //  SHEET_ID=...  SHEET_TAB_NAME=...
 //  node scripts/find-recipe-links.mjs [--dry-run] [--limit N] [--any-domain]
 //
 //  --dry-run     Print what would be written without touching the sheet.
 //  --limit N     Only process the first N un-linked recipes (handy for testing).
-//  --any-domain  Accept the top Google result regardless of domain.
+//  --any-domain  Accept the top search result regardless of domain.
 //                Default: only accept results from known recipe sites.
 
 import Papa from "papaparse";
@@ -46,6 +52,7 @@ const LIMIT     = limitIdx !== -1 ? parseInt(args[limitIdx + 1], 10) : Infinity;
 // ── Env vars ──────────────────────────────────────────────────────────────────
 
 const SHEET_CSV_URL = process.env.SHEET_CSV_URL;
+const SERPER_KEY    = process.env.SERPER_API_KEY;
 const CSE_KEY       = process.env.GOOGLE_CSE_API_KEY;
 const CSE_CX        = process.env.GOOGLE_CSE_CX;
 const SVC_EMAIL     = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
@@ -55,9 +62,17 @@ const TAB_NAME      = process.env.SHEET_TAB_NAME;
 
 function die(msg) { console.error("Error:", msg); process.exit(1); }
 
+// Choose a search provider: Serper.dev (preferred — simplest) if its key is
+// present, otherwise fall back to Google Custom Search if both its values exist.
+const PROVIDER = SERPER_KEY ? "serper" : (CSE_KEY && CSE_CX ? "cse" : null);
+
 if (!SHEET_CSV_URL) die("SHEET_CSV_URL is required.");
-if (!CSE_KEY)       die("GOOGLE_CSE_API_KEY is required.");
-if (!CSE_CX)        die("GOOGLE_CSE_CX is required.");
+if (!PROVIDER) {
+  die(
+    "No search provider configured. Set SERPER_API_KEY (recommended — get one at " +
+    "https://serper.dev), or set both GOOGLE_CSE_API_KEY and GOOGLE_CSE_CX.",
+  );
+}
 if (!DRY_RUN) {
   if (!SVC_EMAIL)   die("GOOGLE_SERVICE_ACCOUNT_EMAIL is required (or use --dry-run).");
   if (!PRIVATE_KEY) die("GOOGLE_PRIVATE_KEY is required (or use --dry-run).");
@@ -178,7 +193,25 @@ async function getAccessToken() {
 
 // ── Google Custom Search ──────────────────────────────────────────────────────
 
-async function searchGoogle(query) {
+// Each provider returns an ordered array of result URLs (strings).
+
+async function searchSerper(query) {
+  const res = await fetch("https://google.serper.dev/search", {
+    method: "POST",
+    headers: { "X-API-KEY": SERPER_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ q: query, num: 10 }),
+  });
+  if (res.status === 429) throw new Error("Serper rate/quota limit hit (429). Wait or top up credits.");
+  if (res.status === 403) throw new Error("Serper rejected the key (403). Check SERPER_API_KEY.");
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`Serper search failed: HTTP ${res.status}: ${body.slice(0, 200)}`);
+  }
+  const json = await res.json();
+  return (json.organic ?? []).map((o) => o.link).filter(Boolean);
+}
+
+async function searchCSE(query) {
   const url = new URL("https://www.googleapis.com/customsearch/v1");
   url.searchParams.set("key", CSE_KEY);
   url.searchParams.set("cx", CSE_CX);
@@ -192,13 +225,16 @@ async function searchGoogle(query) {
     throw new Error(`CSE search failed: HTTP ${res.status}: ${body.slice(0, 200)}`);
   }
   const json = await res.json();
-  return json.items ?? [];
+  return (json.items ?? []).map((i) => i.link).filter(Boolean);
 }
 
-function pickUrl(items) {
-  for (const item of items) {
+function runSearch(query) {
+  return PROVIDER === "serper" ? searchSerper(query) : searchCSE(query);
+}
+
+function pickUrl(links) {
+  for (const link of links) {
     try {
-      const link = item.link;
       if (!link || !/^https?:\/\//i.test(link)) continue;
       if (ANY_DOMAIN) return link;
       const host = new URL(link).hostname.replace(/^www\./, "");
@@ -261,6 +297,7 @@ async function main() {
 
   const linkCol = colLetter(colIdx.link);
   console.log(`Link column: ${linkCol}  Tab: ${TAB_NAME || "(dry-run)"}`);
+  console.log(`Search provider: ${PROVIDER === "serper" ? "Serper.dev" : "Google Custom Search"}`);
   console.log(DRY_RUN ? "Mode: DRY RUN (nothing will be written)" : "Mode: LIVE");
   if (ANY_DOMAIN) console.log("Domain filter: OFF (--any-domain)");
 
@@ -307,8 +344,8 @@ async function main() {
     process.stdout.write(`[${i + 1}/${total}] ${name}… `);
 
     try {
-      const items = await searchGoogle(query);
-      const url   = pickUrl(items);
+      const links = await runSearch(query);
+      const url   = pickUrl(links);
 
       if (url) {
         const host = new URL(url).hostname.replace(/^www\./, "");
@@ -332,8 +369,8 @@ async function main() {
       if (err.message.includes("429")) break;
     }
 
-    // Stay under the free-tier rate limit (~1 req/sec)
-    if (i < total - 1) await sleep(1100);
+    // Pace requests. Serper tolerates a faster cadence than CSE's free tier.
+    if (i < total - 1) await sleep(PROVIDER === "serper" ? 400 : 1100);
   }
 
   await flush();
