@@ -31,12 +31,17 @@
 //  SERPER_API_KEY=...                       (or GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX)
 //  GOOGLE_SERVICE_ACCOUNT_EMAIL=...  GOOGLE_PRIVATE_KEY=...
 //  SHEET_ID=...  SHEET_TAB_NAME=...
-//  node scripts/find-recipe-links.mjs [--dry-run] [--limit N] [--any-domain]
+//  node scripts/find-recipe-links.mjs [--dry-run] [--limit N]
+//                                     [--strict | --any-domain] [--loose]
 //
 //  --dry-run     Print what would be written without touching the sheet.
 //  --limit N     Only process the first N un-linked recipes (handy for testing).
-//  --any-domain  Accept the top search result regardless of domain.
-//                Default: only accept results from known recipe sites.
+//
+//  Result filtering (by default: accept any reputable domain whose result
+//  title matches the recipe name; junk sites like Pinterest/YouTube blocked):
+//  --strict      Only accept results from a curated list of major recipe sites.
+//  --any-domain  Accept any domain at all (even the junk blocklist).
+//  --loose       Skip the title-relevance check (more links, lower accuracy).
 
 import Papa from "papaparse";
 import { SignJWT, importPKCS8 } from "jose";
@@ -44,8 +49,10 @@ import { SignJWT, importPKCS8 } from "jose";
 // ── CLI args ──────────────────────────────────────────────────────────────────
 
 const args = process.argv.slice(2);
-const DRY_RUN   = args.includes("--dry-run");
+const DRY_RUN    = args.includes("--dry-run");
 const ANY_DOMAIN = args.includes("--any-domain");
+const STRICT     = args.includes("--strict");
+const LOOSE      = args.includes("--loose");
 const limitIdx  = args.indexOf("--limit");
 const LIMIT     = limitIdx !== -1 ? parseInt(args[limitIdx + 1], 10) : Infinity;
 
@@ -125,6 +132,26 @@ const TRUSTED = new Set([
   "food.com",
 ]);
 
+// Domains that are never a recipe page — blocked even in the default
+// (non-strict) mode. Social, video, shopping, and book-catalogue sites.
+const BLOCKED = new Set([
+  "pinterest.com",
+  "youtube.com",
+  "youtu.be",
+  "facebook.com",
+  "instagram.com",
+  "tiktok.com",
+  "twitter.com",
+  "x.com",
+  "reddit.com",
+  "amazon.com",
+  "ebay.com",
+  "books.google.com",
+  "goodreads.com",
+  "barnesandnoble.com",
+  "wikipedia.org",
+]);
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function colLetter(index0) {
@@ -191,9 +218,9 @@ async function getAccessToken() {
   return json.access_token;
 }
 
-// ── Google Custom Search ──────────────────────────────────────────────────────
+// ── Search providers ──────────────────────────────────────────────────────────
 
-// Each provider returns an ordered array of result URLs (strings).
+// Each provider returns an ordered array of { title, link } results.
 
 async function searchSerper(query) {
   const res = await fetch("https://google.serper.dev/search", {
@@ -208,7 +235,9 @@ async function searchSerper(query) {
     throw new Error(`Serper search failed: HTTP ${res.status}: ${body.slice(0, 200)}`);
   }
   const json = await res.json();
-  return (json.organic ?? []).map((o) => o.link).filter(Boolean);
+  return (json.organic ?? [])
+    .map((o) => ({ title: o.title ?? "", link: o.link }))
+    .filter((r) => r.link);
 }
 
 async function searchCSE(query) {
@@ -225,20 +254,55 @@ async function searchCSE(query) {
     throw new Error(`CSE search failed: HTTP ${res.status}: ${body.slice(0, 200)}`);
   }
   const json = await res.json();
-  return (json.items ?? []).map((i) => i.link).filter(Boolean);
+  return (json.items ?? [])
+    .map((i) => ({ title: i.title ?? "", link: i.link }))
+    .filter((r) => r.link);
 }
 
 function runSearch(query) {
   return PROVIDER === "serper" ? searchSerper(query) : searchCSE(query);
 }
 
-function pickUrl(links) {
-  for (const link of links) {
+const STOP_WORDS = new Set([
+  "and", "with", "the", "a", "an", "of", "in", "or", "for", "to", "on",
+  "recipe", "recipes", "style", "homemade", "easy", "best", "classic",
+]);
+
+/**
+ * Does the result title plausibly refer to this recipe? We require at least
+ * half of the recipe name's significant words to appear in the title. This
+ * rejects mismatches like "Caprese Salad" → a cookbook-club landing page.
+ */
+function titleMatches(name, title) {
+  const words = (name.toLowerCase().match(/[a-z]+/g) ?? [])
+    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+  if (words.length === 0) return true; // nothing meaningful to match on
+  const t = title.toLowerCase();
+  const hits = words.filter((w) => t.includes(w)).length;
+  return hits / words.length >= 0.5;
+}
+
+/**
+ * Pick the best result URL for a recipe from an ordered result list.
+ *  --strict      only the curated big-site allowlist
+ *  (default)     any domain except the junk blocklist
+ *  --any-domain  any domain at all
+ *  --loose       skip the title-relevance check (more links, lower accuracy)
+ */
+function pickUrl(results, name) {
+  for (const { title, link } of results) {
     try {
       if (!link || !/^https?:\/\//i.test(link)) continue;
-      if (ANY_DOMAIN) return link;
       const host = new URL(link).hostname.replace(/^www\./, "");
-      if (TRUSTED.has(host)) return link;
+
+      if (STRICT) {
+        if (!TRUSTED.has(host)) continue;
+      } else if (!ANY_DOMAIN) {
+        if (BLOCKED.has(host)) continue;
+      }
+
+      if (!LOOSE && !titleMatches(name, title)) continue;
+      return link;
     } catch { /* skip malformed */ }
   }
   return null;
@@ -299,7 +363,11 @@ async function main() {
   console.log(`Link column: ${linkCol}  Tab: ${TAB_NAME || "(dry-run)"}`);
   console.log(`Search provider: ${PROVIDER === "serper" ? "Serper.dev" : "Google Custom Search"}`);
   console.log(DRY_RUN ? "Mode: DRY RUN (nothing will be written)" : "Mode: LIVE");
-  if (ANY_DOMAIN) console.log("Domain filter: OFF (--any-domain)");
+  const domainMode = STRICT ? "curated big-site allowlist (--strict)"
+    : ANY_DOMAIN ? "any domain (--any-domain)"
+    : "any reputable domain (junk sites blocked)";
+  console.log(`Domain filter: ${domainMode}`);
+  console.log(`Title relevance: ${LOOSE ? "OFF (--loose)" : "ON"}`);
 
   // Collect rows needing a link
   const toSearch = [];
@@ -344,8 +412,8 @@ async function main() {
     process.stdout.write(`[${i + 1}/${total}] ${name}… `);
 
     try {
-      const links = await runSearch(query);
-      const url   = pickUrl(links);
+      const results = await runSearch(query);
+      const url     = pickUrl(results, name);
 
       if (url) {
         const host = new URL(url).hostname.replace(/^www\./, "");
