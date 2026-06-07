@@ -39,10 +39,12 @@
 //  ANTHROPIC_API_KEY=...
 //  GOOGLE_SERVICE_ACCOUNT_EMAIL=...  GOOGLE_PRIVATE_KEY=...
 //  SHEET_ID=...  SHEET_TAB_NAME=...
-//  node scripts/find-recipe-links.mjs [--dry-run] [--limit N] [--strict | --any-domain]
+//  node scripts/find-recipe-links.mjs [--dry-run] [--limit N] [--sample] [--strict | --any-domain]
 //
 //  --dry-run     Print what would be written without touching the sheet.
-//  --limit N     Only process the first N un-linked recipes (handy for testing).
+//  --limit N     Only process N un-linked recipes (handy for testing).
+//  --sample      With --limit N, spread the N picks evenly across the whole
+//                catalogue instead of taking the first N (representative test).
 //
 //  Every accepted link is Claude-verified to be that cookbook's recipe. The
 //  domain flags only adjust the safety pre-filter applied before verification:
@@ -60,6 +62,7 @@ const args = process.argv.slice(2);
 const DRY_RUN    = args.includes("--dry-run");
 const ANY_DOMAIN = args.includes("--any-domain");
 const STRICT     = args.includes("--strict");
+const SAMPLE     = args.includes("--sample");
 const limitIdx  = args.indexOf("--limit");
 const LIMIT     = limitIdx !== -1 ? parseInt(args[limitIdx + 1], 10) : Infinity;
 
@@ -452,7 +455,7 @@ async function main() {
 
   // Collect rows needing a link. A book title is required: without it we can't
   // verify the result is genuinely from that cookbook, so such rows are skipped.
-  const toSearch = [];
+  const eligible = [];
   let skippedNoBook = 0;
   for (const [i, row] of parsed.data.entries()) {
     const rowNum = i + 2; // sheet row (header at 1, data from 2)
@@ -466,11 +469,21 @@ async function main() {
     if (/^https?:\/\//i.test(link)) continue; // already has a valid link
     if (!book) { skippedNoBook++; continue; } // can't verify cookbook attribution
 
-    toSearch.push({ rowNum, name, book, author });
-    if (toSearch.length >= LIMIT) break;
+    eligible.push({ rowNum, name, book, author });
   }
   if (skippedNoBook > 0) {
     console.log(`(Skipping ${skippedNoBook} row${skippedNoBook === 1 ? "" : "s"} with no cookbook recorded — can't verify attribution.)`);
+  }
+
+  // Choose which eligible rows to process: an even spread across the whole
+  // catalogue (--sample, good for representative testing) or the first N.
+  let toSearch;
+  if (SAMPLE && Number.isFinite(LIMIT) && LIMIT < eligible.length) {
+    const step = eligible.length / LIMIT;
+    toSearch = Array.from({ length: LIMIT }, (_, k) => eligible[Math.floor(k * step)]);
+    console.log(`Sampling ${LIMIT} of ${eligible.length} eligible recipes, spread across the catalogue.`);
+  } else {
+    toSearch = Number.isFinite(LIMIT) ? eligible.slice(0, LIMIT) : eligible;
   }
 
   const total = toSearch.length;
