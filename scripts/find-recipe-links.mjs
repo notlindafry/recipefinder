@@ -1,6 +1,10 @@
 #!/usr/bin/env node
-// One-time (re-runnable) script: searches Google for a web version of each
-// recipe that doesn't already have a link, and writes the URL back to the sheet.
+// One-time (re-runnable) script: finds a web version of each recipe that
+// doesn't already have a link, and writes the URL back to the sheet.
+//
+// For each recipe it searches by name + cookbook + author, then has Claude
+// verify the result is genuinely THAT cookbook's recipe — not a generic
+// version of the same dish. A correct link or none; never a stand-in.
 //
 // Re-runnable: skips any recipe that already has an https link.
 //
@@ -21,6 +25,9 @@
 //
 //  The script uses Serper if SERPER_API_KEY is set, else Google CSE.
 //
+//  Claude (cookbook verification) — ANTHROPIC_API_KEY (or CLAUDE_API_KEY).
+//  Defaults to claude-haiku-4-5; override with ANTHROPIC_MODEL.
+//
 //  Google Sheets write-back (same service account used by the app's write-back)
 //  - Share your sheet with the service account as an Editor.
 //    Set GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, SHEET_ID, SHEET_TAB_NAME.
@@ -29,22 +36,23 @@
 //
 //  SHEET_CSV_URL=...
 //  SERPER_API_KEY=...                       (or GOOGLE_CSE_API_KEY + GOOGLE_CSE_CX)
+//  ANTHROPIC_API_KEY=...
 //  GOOGLE_SERVICE_ACCOUNT_EMAIL=...  GOOGLE_PRIVATE_KEY=...
 //  SHEET_ID=...  SHEET_TAB_NAME=...
-//  node scripts/find-recipe-links.mjs [--dry-run] [--limit N]
-//                                     [--strict | --any-domain] [--loose]
+//  node scripts/find-recipe-links.mjs [--dry-run] [--limit N] [--strict | --any-domain]
 //
 //  --dry-run     Print what would be written without touching the sheet.
 //  --limit N     Only process the first N un-linked recipes (handy for testing).
 //
-//  Result filtering (by default: accept any reputable domain whose result
-//  title matches the recipe name; junk sites like Pinterest/YouTube blocked):
+//  Every accepted link is Claude-verified to be that cookbook's recipe. The
+//  domain flags only adjust the safety pre-filter applied before verification:
 //  --strict      Only accept results from a curated list of major recipe sites.
+//  (default)     Any reputable domain (junk sites like Pinterest/YouTube blocked).
 //  --any-domain  Accept any domain at all (even the junk blocklist).
-//  --loose       Skip the title-relevance check (more links, lower accuracy).
 
 import Papa from "papaparse";
 import { SignJWT, importPKCS8 } from "jose";
+import Anthropic from "@anthropic-ai/sdk";
 
 // ── CLI args ──────────────────────────────────────────────────────────────────
 
@@ -52,7 +60,6 @@ const args = process.argv.slice(2);
 const DRY_RUN    = args.includes("--dry-run");
 const ANY_DOMAIN = args.includes("--any-domain");
 const STRICT     = args.includes("--strict");
-const LOOSE      = args.includes("--loose");
 const limitIdx  = args.indexOf("--limit");
 const LIMIT     = limitIdx !== -1 ? parseInt(args[limitIdx + 1], 10) : Infinity;
 
@@ -66,6 +73,11 @@ const SVC_EMAIL     = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
 const PRIVATE_KEY   = process.env.GOOGLE_PRIVATE_KEY;
 const SHEET_ID      = process.env.SHEET_ID;
 const TAB_NAME      = process.env.SHEET_TAB_NAME;
+const ANTHROPIC_KEY =
+  process.env.ANTHROPIC_API_KEY ||
+  process.env.CLAUDE_API_KEY ||
+  process.env.claude_api_key;
+const MODEL = process.env.ANTHROPIC_MODEL || "claude-haiku-4-5";
 
 function die(msg) { console.error("Error:", msg); process.exit(1); }
 
@@ -74,6 +86,9 @@ function die(msg) { console.error("Error:", msg); process.exit(1); }
 const PROVIDER = SERPER_KEY ? "serper" : (CSE_KEY && CSE_CX ? "cse" : null);
 
 if (!SHEET_CSV_URL) die("SHEET_CSV_URL is required.");
+if (!ANTHROPIC_KEY) {
+  die("ANTHROPIC_API_KEY (or CLAUDE_API_KEY) is required — Claude verifies that each result is genuinely the cookbook's recipe.");
+}
 if (!PROVIDER) {
   die(
     "No search provider configured. Set SERPER_API_KEY (recommended — get one at " +
@@ -130,6 +145,31 @@ const TRUSTED = new Set([
   "eatingwell.com",
   "countryliving.com",
   "food.com",
+  // Publications & sources that frequently excerpt/attribute cookbook recipes —
+  // the pages most likely to genuinely be "the book's recipe."
+  "saveur.com",
+  "splendidtable.org",
+  "eater.com",
+  "thespruceeats.com",
+  "americastestkitchen.com",
+  "177milkstreet.com",
+  "washingtonpost.com",
+  "latimes.com",
+  "theguardian.com",
+  "bbc.co.uk",
+  "npr.org",
+  "seriouseats.com",
+  "food52.com",
+  "penguinrandomhouse.com",
+  "hachettebookgroup.com",
+  "simonandschuster.com",
+  "harpercollins.com",
+  "abramsbooks.com",
+  "chroniclebooks.com",
+  "workman.com",
+  "tenspeedpress.com",
+  "goop.com",
+  "splendidrecipes.com",
 ]);
 
 // Domains that are never a recipe page — blocked even in the default
@@ -220,7 +260,7 @@ async function getAccessToken() {
 
 // ── Search providers ──────────────────────────────────────────────────────────
 
-// Each provider returns an ordered array of { title, link } results.
+// Each provider returns an ordered array of { title, link, snippet } results.
 
 async function searchSerper(query) {
   const res = await fetch("https://google.serper.dev/search", {
@@ -236,7 +276,7 @@ async function searchSerper(query) {
   }
   const json = await res.json();
   return (json.organic ?? [])
-    .map((o) => ({ title: o.title ?? "", link: o.link }))
+    .map((o) => ({ title: o.title ?? "", link: o.link, snippet: o.snippet ?? "" }))
     .filter((r) => r.link);
 }
 
@@ -245,7 +285,7 @@ async function searchCSE(query) {
   url.searchParams.set("key", CSE_KEY);
   url.searchParams.set("cx", CSE_CX);
   url.searchParams.set("q", query);
-  url.searchParams.set("num", "5");
+  url.searchParams.set("num", "10");
 
   const res = await fetch(url.toString());
   if (res.status === 429) throw new Error("Daily quota exhausted (429). Try again tomorrow or upgrade billing.");
@@ -255,7 +295,7 @@ async function searchCSE(query) {
   }
   const json = await res.json();
   return (json.items ?? [])
-    .map((i) => ({ title: i.title ?? "", link: i.link }))
+    .map((i) => ({ title: i.title ?? "", link: i.link, snippet: i.snippet ?? "" }))
     .filter((r) => r.link);
 }
 
@@ -263,49 +303,86 @@ function runSearch(query) {
   return PROVIDER === "serper" ? searchSerper(query) : searchCSE(query);
 }
 
-const STOP_WORDS = new Set([
-  "and", "with", "the", "a", "an", "of", "in", "or", "for", "to", "on",
-  "recipe", "recipes", "style", "homemade", "easy", "best", "classic",
-]);
+// ── Cookbook-attribution verification (Claude) ─────────────────────────────────
 
-/**
- * Does the result title plausibly refer to this recipe? We require at least
- * half of the recipe name's significant words to appear in the title. This
- * rejects mismatches like "Caprese Salad" → a cookbook-club landing page.
- */
-function titleMatches(name, title) {
-  const words = (name.toLowerCase().match(/[a-z]+/g) ?? [])
-    .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
-  if (words.length === 0) return true; // nothing meaningful to match on
-  const t = title.toLowerCase();
-  const hits = words.filter((w) => t.includes(w)).length;
-  return hits / words.length >= 0.5;
+const anthropic = new Anthropic({ apiKey: ANTHROPIC_KEY });
+
+const VERIFY_SYSTEM = `You verify whether a web page is the SAME recipe published in a SPECIFIC cookbook — not merely a generic or similar version of the dish.
+
+You are given a recipe name, its cookbook title and author, and a numbered list of Google results (title, url, snippet). Return the index of the single result that is specifically THAT cookbook's recipe: e.g. the recipe reproduced or excerpted from that book, the author's own posting of it, or a page that explicitly attributes the recipe to that book or its author.
+
+Be strict. A recipe for the same dish from an unrelated source — with no clear connection to that book or that author — is NOT a match. When several qualify, prefer the most authoritative (the author or publisher over a third-party blog). If none clearly qualify, return -1.`;
+
+const VERIFY_SCHEMA = {
+  type: "object",
+  properties: {
+    index: {
+      type: "integer",
+      description: "0-based index of the result that is genuinely the cookbook's recipe, or -1 if none qualify.",
+    },
+  },
+  required: ["index"],
+  additionalProperties: false,
+};
+
+/** Ask Claude which candidate (if any) is genuinely the cookbook's recipe. */
+async function verifyWithClaude(recipe, candidates) {
+  const list = candidates
+    .map(
+      (c, i) =>
+        `${i}: title: ${c.title}\n   url: ${c.link}\n   snippet: ${c.snippet}`,
+    )
+    .join("\n");
+  const user =
+    `Recipe: ${recipe.name}\n` +
+    `Cookbook: ${recipe.book}\n` +
+    (recipe.author ? `Author: ${recipe.author}\n` : "") +
+    `\nResults:\n${list}`;
+
+  const resp = await anthropic.messages.create({
+    model: MODEL,
+    max_tokens: 100,
+    system: VERIFY_SYSTEM,
+    tools: [{ name: "verify", description: "Record the matching result.", input_schema: VERIFY_SCHEMA }],
+    tool_choice: { type: "tool", name: "verify" },
+    messages: [{ role: "user", content: user }],
+  });
+  const block = resp.content.find((b) => b.type === "tool_use");
+  const idx = block?.input?.index;
+  return Number.isInteger(idx) ? idx : -1;
 }
 
 /**
- * Pick the best result URL for a recipe from an ordered result list.
+ * Pick the best result URL for a recipe. A safety pre-filter (https + domain
+ * policy) narrows the candidates, then Claude confirms the chosen result is
+ * genuinely THIS cookbook's recipe — not a generic version of the dish.
  *  --strict      only the curated big-site allowlist
  *  (default)     any domain except the junk blocklist
  *  --any-domain  any domain at all
- *  --loose       skip the title-relevance check (more links, lower accuracy)
  */
-function pickUrl(results, name) {
-  for (const { title, link } of results) {
+async function pickUrl(results, recipe) {
+  const candidates = [];
+  for (const r of results) {
+    if (!r.link || !/^https?:\/\//i.test(r.link)) continue;
+    let host;
     try {
-      if (!link || !/^https?:\/\//i.test(link)) continue;
-      const host = new URL(link).hostname.replace(/^www\./, "");
-
-      if (STRICT) {
-        if (!TRUSTED.has(host)) continue;
-      } else if (!ANY_DOMAIN) {
-        if (BLOCKED.has(host)) continue;
-      }
-
-      if (!LOOSE && !titleMatches(name, title)) continue;
-      return link;
-    } catch { /* skip malformed */ }
+      host = new URL(r.link).hostname.replace(/^www\./, "");
+    } catch {
+      continue;
+    }
+    if (STRICT) {
+      if (!TRUSTED.has(host)) continue;
+    } else if (!ANY_DOMAIN) {
+      if (BLOCKED.has(host)) continue;
+    }
+    candidates.push(r);
+    if (candidates.length >= 6) break; // bound the prompt + cost
   }
-  return null;
+  if (candidates.length === 0) return null;
+
+  const idx = await verifyWithClaude(recipe, candidates);
+  if (idx < 0 || idx >= candidates.length) return null;
+  return candidates[idx].link;
 }
 
 // ── Sheets batch write ────────────────────────────────────────────────────────
@@ -367,10 +444,12 @@ async function main() {
     : ANY_DOMAIN ? "any domain (--any-domain)"
     : "any reputable domain (junk sites blocked)";
   console.log(`Domain filter: ${domainMode}`);
-  console.log(`Title relevance: ${LOOSE ? "OFF (--loose)" : "ON"}`);
+  console.log(`Cookbook check: Claude (${MODEL}) — must be this book's recipe`);
 
-  // Collect rows needing a link
+  // Collect rows needing a link. A book title is required: without it we can't
+  // verify the result is genuinely from that cookbook, so such rows are skipped.
   const toSearch = [];
+  let skippedNoBook = 0;
   for (const [i, row] of parsed.data.entries()) {
     const rowNum = i + 2; // sheet row (header at 1, data from 2)
     const name   = (row[fieldHeader.name]   ?? "").trim();
@@ -381,9 +460,13 @@ async function main() {
     if (!name && !book) continue;           // blank / filler row
     if (!name) continue;                    // can't build a search query
     if (/^https?:\/\//i.test(link)) continue; // already has a valid link
+    if (!book) { skippedNoBook++; continue; } // can't verify cookbook attribution
 
     toSearch.push({ rowNum, name, book, author });
     if (toSearch.length >= LIMIT) break;
+  }
+  if (skippedNoBook > 0) {
+    console.log(`(Skipping ${skippedNoBook} row${skippedNoBook === 1 ? "" : "s"} with no cookbook recorded — can't verify attribution.)`);
   }
 
   const total = toSearch.length;
@@ -404,16 +487,17 @@ async function main() {
   for (let i = 0; i < total; i++) {
     const { rowNum, name, book, author } = toSearch[i];
 
-    // Build query: "Recipe Name book title recipe" works well for cookbook recipes
-    const queryParts = [`"${name}"`];
-    if (book) queryParts.push(`"${book}"`);
+    // Query the recipe name + book title (quoted) + author, to surface pages
+    // that attribute the recipe to that specific cookbook.
+    const queryParts = [`"${name}"`, `"${book}"`];
+    if (author) queryParts.push(author);
     const query = queryParts.join(" ") + " recipe";
 
     process.stdout.write(`[${i + 1}/${total}] ${name}… `);
 
     try {
       const results = await runSearch(query);
-      const url     = pickUrl(results, name);
+      const url     = await pickUrl(results, { name, book, author });
 
       if (url) {
         const host = new URL(url).hostname.replace(/^www\./, "");
@@ -427,7 +511,7 @@ async function main() {
           if (pending.length >= 50) await flush();
         }
       } else {
-        console.log("— no trusted result");
+        console.log("— no verified cookbook match");
         notFound++;
       }
     } catch (err) {
