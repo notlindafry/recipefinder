@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRecipes, cuisineTaggingAvailable } from "@/lib/data";
 import { aiAvailable } from "@/lib/search";
 import { writeEnabled } from "@/lib/sheets";
-import { guard } from "@/lib/api";
+import { guard, serverError } from "@/lib/api";
 import type { MetaResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -35,8 +35,6 @@ export async function GET(req: NextRequest) {
     };
     return NextResponse.json(meta);
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Something went wrong loading the catalogue.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return serverError(err, "Something went wrong loading the catalogue.");
   }
 }

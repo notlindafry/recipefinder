@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRecipes } from "@/lib/data";
 import { randomPick } from "@/lib/search";
-import { guard, parseFilters, readJson } from "@/lib/api";
+import { guard, parseFilters, readJson, serverError } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const MAX_COUNT = 20;
 
 export async function POST(req: NextRequest) {
   const blocked = guard(req, "random", 30, 60 * 1000);
@@ -14,15 +16,15 @@ export async function POST(req: NextRequest) {
   if (!body) return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
 
   const filters = parseFilters(body.filters);
-  const count = Number.isFinite(body.count) ? Number(body.count) : 5;
+  const count = Number.isFinite(body.count)
+    ? Math.min(Math.max(Math.trunc(Number(body.count)), 1), MAX_COUNT)
+    : 5;
 
   try {
     const recipes = await getRecipes();
     const results = randomPick(recipes, filters, count);
     return NextResponse.json({ results, totalRecipes: recipes.length });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Something went wrong loading the catalogue.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return serverError(err, "Something went wrong loading the catalogue.");
   }
 }

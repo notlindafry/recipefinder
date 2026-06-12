@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRecipes } from "@/lib/data";
 import { similar } from "@/lib/search";
-import { guard, readJson } from "@/lib/api";
+import { guard, readJson, serverError } from "@/lib/api";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,8 +25,6 @@ export async function POST(req: NextRequest) {
       totalRecipes: recipes.length,
     });
   } catch (err) {
-    const message =
-      err instanceof Error ? err.message : "Something went wrong loading the catalogue.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return serverError(err, "Something went wrong loading the catalogue.");
   }
 }

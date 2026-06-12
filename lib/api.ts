@@ -57,6 +57,15 @@ export function guard(
   return null;
 }
 
+/**
+ * Log the real error server-side and return a generic message to the client,
+ * so internal details (sheet URLs, upstream HTTP statuses) don't leak.
+ */
+export function serverError(err: unknown, message: string): NextResponse {
+  console.error(err);
+  return NextResponse.json({ error: message }, { status: 500 });
+}
+
 export async function readJson(
   req: NextRequest,
 ): Promise<Record<string, unknown> | null> {

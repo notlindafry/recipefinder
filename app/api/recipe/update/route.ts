@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRecipes, getSheetMeta, invalidateCache } from "@/lib/data";
 import { writeEnabled, updateRecipeCell } from "@/lib/sheets";
-import { guard, readJson, clampStr } from "@/lib/api";
+import { guard, readJson, clampStr, serverError } from "@/lib/api";
 import { TRIED_TAGS } from "@/lib/vocab";
 
 export const runtime = "nodejs";
@@ -75,7 +75,10 @@ export async function POST(req: NextRequest) {
     invalidateCache(); // next read reflects the change
     return NextResponse.json({ ok: true });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Could not save the change.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    // The row-drift safety check is user-actionable; everything else stays generic.
+    if (err instanceof Error && err.message.startsWith("Safety check failed")) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
+    return serverError(err, "Could not save the change.");
   }
 }
