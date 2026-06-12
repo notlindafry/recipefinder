@@ -46,10 +46,11 @@ header.hero {
 }
 
 .hero h1 {
-  font-weight: 800;
-  font-size: clamp(30px, 6vw, 46px);
+  font-family: var(--font-serif), Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(32px, 6.5vw, 52px);
   margin: 0 0 6px;
-  letter-spacing: -0.03em;
+  letter-spacing: -0.01em;
   color: var(--cream);
 }
 
