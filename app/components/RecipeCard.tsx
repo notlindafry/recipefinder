@@ -63,6 +63,7 @@ export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
 
   return (
     <article className="card">
+      {/* Line 1: recipe title | book | page */}
       <h3>
         {recipe.link ? (
           <a href={recipe.link} target="_blank" rel="noreferrer noopener">
@@ -71,14 +72,31 @@ export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
         ) : (
           recipe.name
         )}
+        <span className="card-title-meta">
+          <span className="title-sep"> | </span>
+          <span className="book">{recipe.book}</span>
+          {recipe.page && (
+            <>
+              <span className="title-sep"> | </span>
+              <span className="page">p. {recipe.page}</span>
+            </>
+          )}
+        </span>
       </h3>
-      <div className="meta">
-        <span className="book">{recipe.book}</span>
-        {recipe.author && <> · {recipe.author}</>}
-        {recipe.chapter && <> · {recipe.chapter}</>}
-      </div>
+
+      {/* Line 2: author · chapter */}
+      {(recipe.author || recipe.chapter) && (
+        <div className="meta">
+          {recipe.author}
+          {recipe.author && recipe.chapter && " · "}
+          {recipe.chapter}
+        </div>
+      )}
+
+      {/* Supplemental info */}
       {result.reason && <div className="reason">{result.reason}</div>}
 
+      {/* Category pills */}
       <div className="tags">
         {recipe.category && <span className="tag">{recipe.category}</span>}
         {recipe.cuisine && <span className="tag tag-cuisine">{recipe.cuisine}</span>}
@@ -87,27 +105,28 @@ export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
             {i}
           </span>
         ))}
-        {recipe.page && <span className="tag tag-page">p. {recipe.page}</span>}
         {triedTag && <span className="tag tag-tried">{triedTag}</span>}
       </div>
 
       {notes && !editingNote && <div className="card-note">📝 {notes}</div>}
 
+      {/* Actions */}
       <div className="card-actions">
         <button type="button" className="link-btn" onClick={() => onSimilar(recipe.id)}>
-          More like this
+          More Like This
         </button>
 
         {canEdit && (
           <>
+            <span className="action-sep">|</span>
             <label className="verdict-edit">
-              <span className="sr-only">Set verdict</span>
+              <span className="sr-only">Set Verdict</span>
               <select
                 value={triedTag}
                 disabled={busy}
                 onChange={(e) => onVerdictChange(e.target.value)}
               >
-                <option value="">Set verdict…</option>
+                <option value="">Set Verdict…</option>
                 {TRIED_TAGS.map((t) => (
                   <option key={t} value={t}>
                     {t}
@@ -115,6 +134,7 @@ export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
                 ))}
               </select>
             </label>
+            <span className="action-sep">|</span>
             {!editingNote ? (
               <button
                 type="button"
@@ -124,7 +144,7 @@ export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
                   setEditingNote(true);
                 }}
               >
-                {notes ? "Edit note" : "Add note"}
+                {notes ? "Edit Note" : "Add Note"}
               </button>
             ) : (
               <span className="note-editor">

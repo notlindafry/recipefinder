@@ -295,6 +295,10 @@ form.search {
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--cream);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0;
 }
 
 .card h3 a {
@@ -305,6 +309,33 @@ form.search {
 
 .card h3 a:hover {
   border-bottom-color: var(--accent-bright);
+}
+
+.card-title-meta {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.card-title-meta .book {
+  font-style: italic;
+  color: #c8c0ac;
+}
+
+.card-title-meta .page {
+  color: var(--muted);
+}
+
+.title-sep {
+  color: var(--line);
+  margin: 0 1px;
+}
+
+.action-sep {
+  color: var(--line);
+  font-size: 13px;
+  user-select: none;
 }
 
 .card .meta {
@@ -414,7 +445,7 @@ form.search {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   margin-top: 12px;
 }
 
