@@ -34,6 +34,18 @@ test("rejects an unsafe (private/loopback) host without fetching", async () => {
   assert.equal(called, false);
 });
 
+test("rejects an excluded domain without fetching", async () => {
+  let called = false;
+  global.fetch = async () => {
+    called = true;
+    return new Response("x", { status: 200 });
+  };
+  const r = await validateUrl("https://www.eatyourbooks.com/library/recipes/123", RECIPE);
+  assert.equal(r.accepted, false);
+  assert.equal(r.classification, "excluded");
+  assert.equal(called, false);
+});
+
 test("rejects a 404", async () => {
   stubFetch([["seriouseats.com", () => new Response("gone", { status: 404 })]]);
   const r = await validateUrl("https://www.seriouseats.com/x", RECIPE);

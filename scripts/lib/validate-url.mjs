@@ -5,7 +5,7 @@
 // signals from the actual content. This is the gate that protects the sheet.
 
 import { parseHttpsUrl, isFetchableUrl } from "./url-safety.mjs";
-import { isAllowedPaywall } from "./trusted-sites.mjs";
+import { isAllowedPaywall, isExcludedDomain } from "./trusted-sites.mjs";
 import { nameMatchStrength, softContains } from "./matching.mjs";
 
 const TIMEOUT_MS = 12_000;
@@ -167,6 +167,9 @@ export async function validateUrl(rawUrl, recipe, reported = {}) {
   const url = parseHttpsUrl(rawUrl);
   if (!url) {
     return reject("unsafe", null, "not a safe https URL");
+  }
+  if (isExcludedDomain(url.hostname)) {
+    return reject("excluded", null, "excluded domain");
   }
 
   let result;

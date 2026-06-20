@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   isReputableDomain,
   isAllowedPaywall,
+  isExcludedDomain,
   reputationTier,
   TIER,
 } from "./trusted-sites.mjs";
@@ -41,6 +42,12 @@ test("only subscribed sites count as allowed paywalls", () => {
   assert.equal(isAllowedPaywall("epicurious.com"), true);
   assert.equal(isAllowedPaywall("seriouseats.com"), false);
   assert.equal(isAllowedPaywall("foodnetwork.com"), false);
+});
+
+test("excluded domains are flagged (incl. sub-domains)", () => {
+  assert.equal(isExcludedDomain("eatyourbooks.com"), true);
+  assert.equal(isExcludedDomain("www.eatyourbooks.com"), true);
+  assert.equal(isExcludedDomain("food52.com"), false);
 });
 
 test("reputation tiers", () => {

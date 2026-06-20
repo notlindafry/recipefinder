@@ -90,6 +90,20 @@ export const ALLOWED_PAYWALL_DOMAINS = new Set([
   "cookscountry.com",
 ]);
 
+/**
+ * Domains to never propose, fetch, or write — even if otherwise reputable.
+ * eatyourbooks.com indexes which book/page a recipe is in but doesn't host the
+ * recipe itself, so it isn't a useful "online version." Add more (comma-
+ * separated) via the RECIPE_LINK_EXCLUDE env var.
+ */
+export const EXCLUDED_DOMAINS = new Set([
+  "eatyourbooks.com",
+  ...(process.env.RECIPE_LINK_EXCLUDE || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
+]);
+
 function normalizeHost(hostname) {
   return String(hostname || "").trim().toLowerCase().replace(/\.$/, "");
 }
@@ -125,4 +139,18 @@ export function isAllowedPaywall(hostname) {
     if (hostMatchesDomain(h, domain)) return true;
   }
   return false;
+}
+
+/** True when the host is on the never-use exclusion list. */
+export function isExcludedDomain(hostname) {
+  const h = normalizeHost(hostname);
+  for (const domain of EXCLUDED_DOMAINS) {
+    if (hostMatchesDomain(h, domain)) return true;
+  }
+  return false;
+}
+
+/** The exclusion list for Claude's web_search `blocked_domains`. */
+export function excludedSearchDomains() {
+  return [...EXCLUDED_DOMAINS];
 }

@@ -4,6 +4,7 @@
 // whether any are real, safe, and a genuine match worth writing.
 
 import Anthropic from "@anthropic-ai/sdk";
+import { excludedSearchDomains } from "./trusted-sites.mjs";
 
 // The finder can use its own model (web search benefits from a strong one)
 // without disturbing the app's cost-tuned ANTHROPIC_MODEL for normal search.
@@ -103,7 +104,12 @@ export async function findCandidates(recipe) {
     max_tokens: 1500,
     system: SYSTEM,
     tools: [
-      { type: "web_search_20250305", name: "web_search", max_uses: MAX_SEARCHES },
+      {
+        type: "web_search_20250305",
+        name: "web_search",
+        max_uses: MAX_SEARCHES,
+        blocked_domains: excludedSearchDomains(),
+      },
       {
         name: "emit_candidates",
         description: "Record the candidate recipe pages found.",
