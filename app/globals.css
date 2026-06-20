@@ -441,6 +441,24 @@ form.search {
   padding: 6px 10px;
 }
 
+.card-link {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.card-link a {
+  color: var(--accent-bright);
+  word-break: break-all;
+}
+
+.reject-btn {
+  color: #f0b3a6;
+}
+
 .card-actions {
   display: flex;
   flex-wrap: wrap;

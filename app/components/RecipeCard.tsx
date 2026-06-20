@@ -22,7 +22,7 @@ export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  async function save(field: "triedTag" | "notes", value: string) {
+  async function save(field: "triedTag" | "notes" | "link", value: string) {
     setBusy(true);
     setErr(null);
     try {
@@ -94,17 +94,22 @@ export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
     }
   }
 
+  // Reject/remove the proposed URL: clears the sheet's link cell so the recipe
+  // is un-linked again (and can be searched anew).
+  async function onRejectLink() {
+    setFindMsg(null);
+    const ok = await save("link", "");
+    if (ok) {
+      setLink("");
+      setFindMsg("Link removed.");
+    }
+  }
+
   return (
     <article className="card">
       {/* Line 1: recipe title | book | page */}
       <h3>
-        {link ? (
-          <a href={link} target="_blank" rel="noreferrer noopener">
-            {recipe.name}
-          </a>
-        ) : (
-          recipe.name
-        )}
+        {recipe.name}
         <span className="card-title-meta">
           <span className="title-sep"> | </span>
           <span className="book">{recipe.book}</span>
@@ -128,6 +133,26 @@ export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
 
       {/* Supplemental info */}
       {result.reason && <div className="reason">{result.reason}</div>}
+
+      {/* Online recipe link: shown as the raw URL, with a reject control */}
+      {link && (
+        <div className="card-link">
+          <span aria-hidden="true">🔗</span>
+          <a href={link} target="_blank" rel="noreferrer noopener">
+            {link}
+          </a>
+          {canEdit && (
+            <button
+              type="button"
+              className="link-btn reject-btn"
+              disabled={busy}
+              onClick={onRejectLink}
+            >
+              Reject
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Category pills */}
       <div className="tags">

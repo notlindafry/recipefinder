@@ -3,6 +3,7 @@ import { getRecipes, getSheetMeta, invalidateCache } from "@/lib/data";
 import { writeEnabled, updateRecipeCell } from "@/lib/sheets";
 import { guard, readJson, clampStr, serverError } from "@/lib/api";
 import { TRIED_TAGS } from "@/lib/vocab";
+import { sanitizeUrlForSheet } from "@/scripts/lib/url-safety.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
   if (!Number.isInteger(id) || id < 0) {
     return NextResponse.json({ error: "Invalid recipe id." }, { status: 400 });
   }
-  if (field !== "triedTag" && field !== "notes") {
+  if (field !== "triedTag" && field !== "notes" && field !== "link") {
     return NextResponse.json({ error: "Unsupported field." }, { status: 400 });
   }
 
@@ -39,6 +40,18 @@ export async function POST(req: NextRequest) {
     value = clampStr(body.value, 80);
     if (!ALLOWED_TAGS.has(value)) {
       return NextResponse.json({ error: "Invalid verdict value." }, { status: 400 });
+    }
+  } else if (field === "link") {
+    // Empty = reject/remove the link. Non-empty must be a clean trusted https URL.
+    const raw = clampStr(body.value, 2048);
+    if (raw) {
+      const safe = sanitizeUrlForSheet(raw);
+      if (!safe) {
+        return NextResponse.json({ error: "Invalid link." }, { status: 400 });
+      }
+      value = safe;
+    } else {
+      value = "";
     }
   } else {
     value = clampStr(body.value, MAX_NOTE_LEN);
@@ -56,7 +69,12 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
-    const targetCol = field === "triedTag" ? meta.triedTagCol : meta.notesCol;
+    const targetCol =
+      field === "triedTag"
+        ? meta.triedTagCol
+        : field === "link"
+          ? meta.linkCol
+          : meta.notesCol;
     if (targetCol === null) {
       return NextResponse.json(
         { error: `Could not locate the ${field} column in the sheet.` },
