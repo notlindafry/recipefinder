@@ -8,7 +8,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --test scripts/lib/*.test.mjs",
+    "find-urls": "node scripts/find-recipe-urls.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.68.0",
