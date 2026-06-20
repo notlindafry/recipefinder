@@ -189,8 +189,11 @@ both write to your **Recipe link** column.
 The bulk script:
 
 ```bash
-# Preview without writing anything:
-npm run find-urls -- --dry-run
+# Preview without writing anything (also prints a projected full-run cost):
+npm run find-urls -- --dry-run --limit 50
+
+# Spend in affordable increments — stop after ~$75, then re-run later to continue:
+npm run find-urls -- --budget 75
 
 # Fill in links (processes up to 100 un-linked recipes by default):
 npm run find-urls
@@ -198,6 +201,13 @@ npm run find-urls
 # Target a specific newly-bought book, and lift the per-run cap:
 npm run find-urls -- --book "Soup Book" --limit 0
 ```
+
+**Budget the spend (`--budget <USD>`).** A full pass over thousands of recipes can cost
+real money (web search + tokens). Pass `--budget 75` to stop once the run's *measured*
+cost crosses ~$75 — it's idempotent, so re-running picks up exactly where it left off.
+The GitHub Actions workflow exposes this as a **budget** field (default 75), so you can
+chip away at the catalogue $75 at a time, whenever you like. Every run (dry or real)
+prints a measured cost breakdown and a projected total for all remaining recipes.
 
 **How it finds a _direct_ match (not just any same-named recipe).** For each recipe it
 asks Claude to search **the web** for a page that matches the **recipe name _and_ the book

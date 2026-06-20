@@ -8,8 +8,12 @@ name: Find recipe links
 on:
   workflow_dispatch:
     inputs:
+      budget:
+        description: "Approx. US dollars to spend this run, then stop (0 = no cap). Re-run anytime to continue."
+        required: false
+        default: "75"
       limit:
-        description: "Max recipes to process this run (0 = no cap, as many as possible)"
+        description: "Max recipes to process this run (0 = no cap). A safety cap alongside budget."
         required: false
         default: "0"
       book:
@@ -76,6 +80,7 @@ jobs:
           LIMIT: ${{ inputs.limit }}
           BOOK: ${{ inputs.book }}
           DRY: ${{ inputs.dry_run }}
+          BUDGET: ${{ inputs.budget }}
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ] || [ -z "$GOOGLE_PRIVATE_KEY" ] || [ -z "$SHEET_ID" ]; then
             echo "::error::Missing required secrets. Add ANTHROPIC_API_KEY, GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_PRIVATE_KEY, SHEET_ID, and SHEET_TAB_NAME under Settings -> Secrets and variables -> Actions."
@@ -84,5 +89,6 @@ jobs:
           ARGS=(--limit "${LIMIT:-0}")
           [ "$DRY" = "true" ] && ARGS+=(--dry-run)
           [ -n "$BOOK" ] && ARGS+=(--book "$BOOK")
+          [ -n "$BUDGET" ] && [ "$BUDGET" != "0" ] && ARGS+=(--budget "$BUDGET")
           echo "Running: find-urls ${ARGS[*]}"
           npm run find-urls -- "${ARGS[@]}"

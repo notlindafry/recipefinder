@@ -33,32 +33,26 @@ import {
 } from "./lib/sheets.mjs";
 import { findBestLink } from "./lib/find-link.mjs";
 import { finderModel } from "./lib/find-candidates.mjs";
+import { usageCost, reportCost } from "./lib/cost.mjs";
 
 const DEFAULT_LIMIT = 100; // cost guardrail; raise with --limit (0 = no cap)
 const CONCURRENCY = 3;
-
-// Published per-MTok token prices and the web-search rate, for cost estimation.
-const PRICES = {
-  "claude-opus-4-8": { in: 5, out: 25 },
-  "claude-opus-4-7": { in: 5, out: 25 },
-  "claude-opus-4-6": { in: 5, out: 25 },
-  "claude-sonnet-4-6": { in: 3, out: 15 },
-  "claude-haiku-4-5": { in: 1, out: 5 },
-};
-const WEB_SEARCH_PER_1K = 10; // USD per 1,000 web searches
 const CHUNK = 25; // flush matches to the sheet every N recipes (durable progress)
 
 function parseArgs(argv) {
-  const args = { dryRun: false, limit: DEFAULT_LIMIT, book: null };
+  const args = { dryRun: false, limit: DEFAULT_LIMIT, book: null, budget: 0 };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--dry-run") args.dryRun = true;
     else if (a === "--limit") args.limit = Number(argv[++i]);
     else if (a === "--book") args.book = String(argv[++i] || "").trim();
+    else if (a === "--budget") args.budget = Number(argv[++i]);
     else if (a.startsWith("--limit=")) args.limit = Number(a.split("=")[1]);
     else if (a.startsWith("--book=")) args.book = a.split("=").slice(1).join("=").trim();
+    else if (a.startsWith("--budget=")) args.budget = Number(a.split("=")[1]);
   }
   if (!Number.isFinite(args.limit) || args.limit < 0) args.limit = DEFAULT_LIMIT;
+  if (!Number.isFinite(args.budget) || args.budget < 0) args.budget = 0;
   return args;
 }
 
@@ -201,8 +195,14 @@ async function main() {
 
   const summary = { matched: 0, no_match: 0, no_candidates: 0, error: 0 };
   const usage = { input: 0, output: 0, searches: 0, counted: 0 };
+  const model = finderModel();
   let written = 0;
   let skipped = 0;
+  let stopped = false; // set once the --budget cap is reached
+
+  if (args.budget > 0) {
+    console.log(`Budget cap: ~$${args.budget} (stops shortly after crossing it).`);
+  }
 
   // Process in chunks and flush each chunk's matches as we go, so a long run is
   // durable: if it's cancelled or times out, everything found so far is already
@@ -214,6 +214,7 @@ async function main() {
     await runPool(
       chunk,
       async ({ rowNumber, recipe }) => {
+        if (stopped) return; // budget reached — skip remaining (left for a future run)
         const res = await processRecipe(recipe);
         summary[res.status] = (summary[res.status] || 0) + 1;
         if (res.usage) {
@@ -221,6 +222,9 @@ async function main() {
           usage.output += res.usage.output;
           usage.searches += res.usage.searches;
           usage.counted += 1;
+          if (args.budget > 0 && usageCost(usage, model).total >= args.budget) {
+            stopped = true;
+          }
         }
         if (res.status === "matched") {
           chunkUpdates.push({ row: rowNumber, value: res.url, name: recipe.name });
@@ -242,13 +246,17 @@ async function main() {
       `  …${Math.min(start + CHUNK, limited.length)}/${limited.length} processed` +
         (args.dryRun ? "" : ` · ${written} written so far`),
     );
+    if (stopped) {
+      console.log(`\nReached ~$${args.budget} budget — stopping. Re-run anytime to continue.`);
+      break;
+    }
   }
 
   console.log(
     `\nResults: ${summary.matched} matched, ${summary.no_match} no-match, ` +
       `${summary.no_candidates} no-candidates, ${summary.error} error.`,
   );
-  reportCost(usage, eligible, finderModel());
+  reportCost(usage, eligible, model);
   if (args.dryRun) {
     console.log(`Dry run — no changes written (${summary.matched} would have been).`);
     return;
@@ -256,32 +264,6 @@ async function main() {
   console.log(
     `Wrote ${written} URL(s) to column ${columnLetter(targetCol)}.` +
       (skipped ? ` Skipped ${skipped} (changed since read).` : ""),
-  );
-}
-
-/** Print a measured cost breakdown for this run and project it to all eligible rows. */
-function reportCost(usage, eligible, model) {
-  if (usage.counted === 0) return;
-  const price = PRICES[model] || PRICES["claude-sonnet-4-6"];
-  const inCost = (usage.input / 1e6) * price.in;
-  const outCost = (usage.output / 1e6) * price.out;
-  const searchCost = (usage.searches / 1000) * WEB_SEARCH_PER_1K;
-  const runCost = inCost + outCost + searchCost;
-  const perRecipe = runCost / usage.counted;
-
-  console.log(`\nCost (measured over ${usage.counted} recipe(s), model ${model}):`);
-  console.log(`  web searches: ${usage.searches}  ($${searchCost.toFixed(2)})`);
-  console.log(`  input tokens:  ${usage.input.toLocaleString()}  ($${inCost.toFixed(2)})`);
-  console.log(`  output tokens: ${usage.output.toLocaleString()}  ($${outCost.toFixed(2)})`);
-  console.log(`  this run: $${runCost.toFixed(2)}  ·  ~$${perRecipe.toFixed(3)}/recipe`);
-  console.log(
-    `  → projected for all ${eligible} un-linked recipe(s): ~$${(perRecipe * eligible).toFixed(2)}`,
-  );
-  if (!PRICES[model]) {
-    console.log(`  (unrecognized model — priced as claude-sonnet-4-6; adjust if needed)`);
-  }
-  console.log(
-    `  basis: web search $${WEB_SEARCH_PER_1K}/1k searches; tokens $${price.in}/$${price.out} per MTok in/out.`,
   );
 }
 

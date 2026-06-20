@@ -21,6 +21,7 @@ import {
   scoreCandidate,
   pickBest,
 } from "./matching.mjs";
+import { usageCost } from "./cost.mjs";
 
 // --- trusted-sites (reputation map) --------------------------------------
 
@@ -150,6 +151,19 @@ test("scoreCandidate: reputable-only write policy", () => {
     q("some-blog.example", { name: "exact", book: false, author: true }, { acceptAny: true }),
     true,
   );
+});
+
+// --- cost (drives the --budget cap) ---------------------------------------
+
+test("usageCost prices tokens per model and searches at $10/1k", () => {
+  const u = { input: 1_000_000, output: 1_000_000, searches: 1000 };
+  assert.equal(usageCost(u, "claude-sonnet-4-6").total, 28); // 3 + 15 + 10
+  assert.equal(usageCost(u, "claude-haiku-4-5").total, 16); //  1 +  5 + 10
+  assert.equal(usageCost(u, "claude-opus-4-8").total, 40); //  5 + 25 + 10
+  // unknown model falls back to sonnet pricing
+  assert.equal(usageCost(u, "made-up").total, 28);
+  // search-only pricing: 250 searches = $2.50
+  assert.equal(usageCost({ input: 0, output: 0, searches: 250 }, "claude-haiku-4-5").searchCost, 2.5);
 });
 
 test("pickBest prefers strongest signals, then reputation", () => {
