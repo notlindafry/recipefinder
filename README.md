@@ -38,9 +38,10 @@ If no API key is configured, the app gracefully falls back to keyword search.
 - **Installable (PWA)** — add it to your phone's home screen.
 - **Password-protected** with rate limiting, CSRF protection, and hardened headers.
 - **Optional write-back** — set a verdict or prep note from the app (see below).
-- **Find online recipe links** — `npm run find-urls` scans a curated allowlist of
-  reputable recipe sites for the online version of each recipe and fills in the link
-  column (see below).
+- **Find online recipe links** — click **🔗 Find link** on any result, or run
+  `npm run find-urls` to batch-fill the whole catalogue. Both scan a curated allowlist
+  of reputable recipe sites for the recipe's online version and write it to the **Recipe
+  link** column (see below).
 
 ---
 
@@ -172,13 +173,20 @@ Re-run after adding lots of recipes.
 
 ## Optional: find online recipe links
 
-`npm run find-urls` scans the web for the online version of each recipe in your
-catalogue and writes the URL back to your sheet — so you can jump straight from a
-search result to the full recipe. It's built for the real-world workflow of buying a
-new cookbook, adding its recipes, and then filling in links in one pass.
+There are two ways to find the online version of a recipe and write the URL back to your
+sheet — so you can jump straight from a search result to the full recipe:
 
-It needs the **same Google service account as write-back** (it reads and writes through
-the Sheets API) plus `ANTHROPIC_API_KEY` (with **web search** enabled on the account).
+- **In the app — `🔗 Find link`.** Every result that doesn't already have a link shows a
+  **Find link** button (when write-back is enabled). Click it to scan for that one recipe
+  on demand; the title turns into a link as soon as it's found.
+- **In bulk — `npm run find-urls`.** Fills the whole catalogue in one pass. Built for the
+  real-world workflow of buying a new cookbook, adding its recipes, and linking them all.
+
+Both need the **same Google service account as write-back** (they read and write through
+the Sheets API) plus `ANTHROPIC_API_KEY` (with **web search** enabled on the account), and
+both write to your **Recipe link** column.
+
+The bulk script:
 
 ```bash
 # Preview without writing anything:

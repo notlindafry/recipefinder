@@ -31,14 +31,10 @@ import {
   batchWriteColumn,
   columnLetter,
 } from "./lib/sheets.mjs";
-import { findCandidates } from "./lib/find-candidates.mjs";
-import { validateUrl } from "./lib/validate-url.mjs";
-import { scoreCandidate, pickBest } from "./lib/matching.mjs";
-import { sanitizeUrlForSheet } from "./lib/url-safety.mjs";
+import { findBestLink } from "./lib/find-link.mjs";
 
 const DEFAULT_LIMIT = 100; // cost guardrail; raise with --limit (0 = no cap)
 const CONCURRENCY = 3;
-const MAX_CANDIDATES_PER_RECIPE = 6;
 
 function parseArgs(argv) {
   const args = { dryRun: false, limit: DEFAULT_LIMIT, book: null };
@@ -107,47 +103,12 @@ function isFatalApiError(err) {
 }
 
 async function processRecipe(recipe) {
-  let candidates;
   try {
-    candidates = await findCandidates(recipe);
+    return await findBestLink(recipe);
   } catch (err) {
     if (isFatalApiError(err)) throw err; // abort the run
     return { status: "error", reason: err?.message || "search failed" };
   }
-
-  // De-dup and cap how many we'll actually fetch/validate.
-  const seen = new Set();
-  const unique = [];
-  for (const c of candidates || []) {
-    const key = norm(c.url);
-    if (!c.url || seen.has(key)) continue;
-    seen.add(key);
-    unique.push(c);
-    if (unique.length >= MAX_CANDIDATES_PER_RECIPE) break;
-  }
-
-  const finalists = [];
-  for (const c of unique) {
-    const reported = {
-      name: c.matchesName !== false,
-      book: Boolean(c.matchesBook),
-      author: Boolean(c.matchesAuthor),
-    };
-    const v = await validateUrl(c.url, recipe, reported);
-    if (!v.accepted) continue;
-    const safe = sanitizeUrlForSheet(v.finalUrl || c.url);
-    if (!safe) continue;
-    const host = new URL(safe).hostname;
-    const s = scoreCandidate(host, v.signals);
-    if (!s.qualifies) continue;
-    finalists.push({ url: safe, ...s });
-  }
-
-  const best = pickBest(finalists);
-  if (!best) {
-    return { status: candidates?.length ? "no_match" : "no_candidates" };
-  }
-  return { status: "matched", url: best.url, score: best.score };
 }
 
 async function main() {

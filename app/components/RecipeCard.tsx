@@ -16,6 +16,9 @@ export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
   const [notes, setNotes] = useState(recipe.notes);
   const [editingNote, setEditingNote] = useState(false);
   const [draftNote, setDraftNote] = useState(recipe.notes);
+  const [link, setLink] = useState(recipe.link);
+  const [finding, setFinding] = useState(false);
+  const [findMsg, setFindMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -61,12 +64,42 @@ export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
     }
   }
 
+  // Scan trusted recipe sites for this recipe's online version and, if found,
+  // write it to the sheet's link column. Bounded to one recipe per click.
+  async function onFindLink() {
+    setFinding(true);
+    setFindMsg(null);
+    setErr(null);
+    try {
+      const res = await fetch("/api/recipe/find-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: recipe.id }),
+      });
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(json.error || "Could not find a link.");
+        return;
+      }
+      if (json.link) setLink(json.link);
+      else setFindMsg("No trusted online match found.");
+    } catch {
+      setErr("Could not reach the server.");
+    } finally {
+      setFinding(false);
+    }
+  }
+
   return (
     <article className="card">
       {/* Line 1: recipe title | book | page */}
       <h3>
-        {recipe.link ? (
-          <a href={recipe.link} target="_blank" rel="noreferrer noopener">
+        {link ? (
+          <a href={link} target="_blank" rel="noreferrer noopener">
             {recipe.name}
           </a>
         ) : (
@@ -115,6 +148,20 @@ export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
         <button type="button" className="link-btn" onClick={() => onSimilar(recipe.id)}>
           More Like This
         </button>
+
+        {canEdit && !link && (
+          <>
+            <span className="action-sep">|</span>
+            <button
+              type="button"
+              className="link-btn"
+              disabled={finding}
+              onClick={onFindLink}
+            >
+              {finding ? "Finding link…" : "🔗 Find link"}
+            </button>
+          </>
+        )}
 
         {canEdit && (
           <>
@@ -176,6 +223,7 @@ export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
         )}
       </div>
 
+      {findMsg && <div className="card-note">{findMsg}</div>}
       {err && <div className="card-err">{err}</div>}
     </article>
   );

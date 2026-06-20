@@ -7,6 +7,7 @@ interface SheetMeta {
   nameCol: number | null;
   triedTagCol: number | null;
   notesCol: number | null;
+  linkCol: number | null;
   /** Row number (1-based) of the first data row (header is assumed at row 1). */
   firstDataRow: number;
 }
@@ -145,6 +146,7 @@ async function fetchAndParse(
     nameCol: colIndex.name ?? null,
     triedTagCol: colIndex.triedTag ?? null,
     notesCol: colIndex.notes ?? null,
+    linkCol: colIndex.link ?? null,
     firstDataRow: 2,
   };
 
