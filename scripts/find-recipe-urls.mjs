@@ -35,6 +35,7 @@ import { findBestLink } from "./lib/find-link.mjs";
 
 const DEFAULT_LIMIT = 100; // cost guardrail; raise with --limit (0 = no cap)
 const CONCURRENCY = 3;
+const CHUNK = 25; // flush matches to the sheet every N recipes (durable progress)
 
 function parseArgs(argv) {
   const args = { dryRun: false, limit: DEFAULT_LIMIT, book: null };
@@ -111,6 +112,25 @@ async function processRecipe(recipe) {
   }
 }
 
+// Re-read the sheet and write only rows whose recipe name is unchanged and whose
+// target cell is still empty, so we never overwrite the wrong cell or clobber a
+// link added since we read. Returns how many were written vs. skipped.
+async function flushUpdates(targetCol, nameCol, updates) {
+  const fresh = await readSheet();
+  const safe = updates.filter(({ row, name }) => {
+    const live = fresh[row - 1];
+    if (!live) return false;
+    const liveName = norm(live[nameCol] || "");
+    const liveTarget = (live[targetCol] || "").trim();
+    return liveName === norm(name) && !liveTarget;
+  });
+  await batchWriteColumn(
+    targetCol,
+    safe.map(({ row, value }) => ({ row, value })),
+  );
+  return { written: safe.length, skipped: updates.length - safe.length };
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   requireSheetEnv();
@@ -165,61 +185,57 @@ async function main() {
   );
   if (limited.length === 0) return;
 
-  const summary = { matched: 0, no_match: 0, no_candidates: 0, error: 0 };
-  const updates = [];
+  // Create the dedicated column header up front if we're appending a new one.
+  if (!args.dryRun && createHeaderAs) await writeHeaderCell(targetCol, createHeaderAs);
 
-  await runPool(
-    limited,
-    async ({ rowNumber, recipe }) => {
-      const res = await processRecipe(recipe);
-      summary[res.status] = (summary[res.status] || 0) + 1;
-      if (res.status === "matched") {
-        updates.push({ row: rowNumber, value: res.url, name: recipe.name });
-        console.log(`✓ row ${rowNumber}  ${recipe.name} → ${res.url}`);
-      } else {
-        const why = res.reason ? ` (${res.reason})` : "";
-        console.log(`· row ${rowNumber}  ${recipe.name} — ${res.status}${why}`);
-      }
-    },
-    CONCURRENCY,
-  );
+  const summary = { matched: 0, no_match: 0, no_candidates: 0, error: 0 };
+  let written = 0;
+  let skipped = 0;
+
+  // Process in chunks and flush each chunk's matches as we go, so a long run is
+  // durable: if it's cancelled or times out, everything found so far is already
+  // saved (and a re-run resumes, since linked rows are skipped).
+  for (let start = 0; start < limited.length; start += CHUNK) {
+    const chunk = limited.slice(start, start + CHUNK);
+    const chunkUpdates = [];
+
+    await runPool(
+      chunk,
+      async ({ rowNumber, recipe }) => {
+        const res = await processRecipe(recipe);
+        summary[res.status] = (summary[res.status] || 0) + 1;
+        if (res.status === "matched") {
+          chunkUpdates.push({ row: rowNumber, value: res.url, name: recipe.name });
+          console.log(`✓ row ${rowNumber}  ${recipe.name} → ${res.url}`);
+        } else {
+          const why = res.reason ? ` (${res.reason})` : "";
+          console.log(`· row ${rowNumber}  ${recipe.name} — ${res.status}${why}`);
+        }
+      },
+      CONCURRENCY,
+    );
+
+    if (!args.dryRun && chunkUpdates.length) {
+      const r = await flushUpdates(targetCol, cols.name, chunkUpdates);
+      written += r.written;
+      skipped += r.skipped;
+    }
+    console.log(
+      `  …${Math.min(start + CHUNK, limited.length)}/${limited.length} processed` +
+        (args.dryRun ? "" : ` · ${written} written so far`),
+    );
+  }
 
   console.log(
     `\nResults: ${summary.matched} matched, ${summary.no_match} no-match, ` +
       `${summary.no_candidates} no-candidates, ${summary.error} error.`,
   );
-
   if (args.dryRun) {
-    console.log("Dry run — no changes written.");
+    console.log(`Dry run — no changes written (${summary.matched} would have been).`);
     return;
   }
-  if (updates.length === 0) {
-    console.log("Nothing to write.");
-    return;
-  }
-
-  // Create the dedicated column header if we're appending a new one.
-  if (createHeaderAs) await writeHeaderCell(targetCol, createHeaderAs);
-
-  // Safety re-check: re-read the name + target columns and only write rows whose
-  // recipe name is unchanged and whose target cell is still empty, so a
-  // concurrent edit between read and write can never overwrite the wrong cell.
-  const fresh = await readSheet();
-  const safeUpdates = updates.filter(({ row, name }) => {
-    const live = fresh[row - 1];
-    if (!live) return false;
-    const liveName = norm(live[cols.name] || "");
-    const liveTarget = (live[targetCol] || "").trim();
-    return liveName === norm(name) && !liveTarget;
-  });
-  const skipped = updates.length - safeUpdates.length;
-
-  await batchWriteColumn(
-    targetCol,
-    safeUpdates.map(({ row, value }) => ({ row, value })),
-  );
   console.log(
-    `Wrote ${safeUpdates.length} URL(s) to column ${columnLetter(targetCol)}.` +
+    `Wrote ${written} URL(s) to column ${columnLetter(targetCol)}.` +
       (skipped ? ` Skipped ${skipped} (changed since read).` : ""),
   );
 }
