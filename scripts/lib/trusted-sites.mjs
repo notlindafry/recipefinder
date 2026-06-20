@@ -74,6 +74,26 @@ export const ALLOWED_PAYWALL_DOMAINS = new Set([
   "cookscountry.com",
 ]);
 
+/**
+ * Trusted sites whose own bot policy blocks Anthropic's web_search crawler.
+ * The web_search tool 400s if any of these is in `allowed_domains`, so we keep
+ * them OUT of search — but they stay TRUSTED for validation (a URL we already
+ * hold is still fine to write). The finder also prunes any others the API
+ * reports at runtime, so this is an optimization, not the only safeguard.
+ */
+export const SEARCH_BLOCKED_DOMAINS = new Set([
+  "epicurious.com",
+  "seriouseats.com",
+  "bonappetit.com",
+  "simplyrecipes.com",
+  "foodandwine.com",
+  "eatingwell.com",
+  "marthastewart.com",
+  "allrecipes.com",
+  "bbcgoodfood.com",
+  "delish.com",
+]);
+
 function normalizeHost(hostname) {
   return String(hostname || "").trim().toLowerCase().replace(/\.$/, "");
 }
@@ -110,7 +130,10 @@ export function isAllowedPaywall(hostname) {
   return false;
 }
 
-/** The plain domain list handed to Claude's web_search `allowed_domains`. */
+/**
+ * The plain domain list handed to Claude's web_search `allowed_domains`.
+ * Excludes sites that block Anthropic's crawler (they'd cause a 400).
+ */
 export function allowedSearchDomains() {
-  return [...TRUSTED_SITES.keys()];
+  return [...TRUSTED_SITES.keys()].filter((d) => !SEARCH_BLOCKED_DOMAINS.has(d));
 }

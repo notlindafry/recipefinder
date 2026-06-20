@@ -47,7 +47,11 @@ test("reputation tiers and search domains", () => {
   assert.equal(reputationTier("cooking.nytimes.com"), TIER.TOP);
   assert.equal(reputationTier("budgetbytes.com"), TIER.GOOD);
   assert.equal(reputationTier("evil.com"), 0);
-  assert.ok(allowedSearchDomains().includes("epicurious.com"));
+  // food52 is crawlable and searchable; epicurious is trusted but blocks the
+  // web-search crawler, so it's excluded from the search list (still trusted).
+  assert.ok(allowedSearchDomains().includes("food52.com"));
+  assert.ok(!allowedSearchDomains().includes("epicurious.com"));
+  assert.equal(isTrustedDomain("epicurious.com"), true);
 });
 
 // --- url-safety ----------------------------------------------------------

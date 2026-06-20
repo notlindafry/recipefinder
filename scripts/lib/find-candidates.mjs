@@ -87,36 +87,21 @@ function urlsFromSearchResults(content) {
  * @returns {Promise<Array<{url:string, matchesName:boolean, matchesBook:boolean,
  *   matchesAuthor:boolean, looksPaywalled:boolean, note?:string}>>}
  */
-export async function findCandidates(recipe) {
-  const api = getClient();
-  const res = await api.messages.create({
-    model: MODEL,
-    max_tokens: 1500,
-    system: SYSTEM,
-    tools: [
-      {
-        type: "web_search_20250305",
-        name: "web_search",
-        max_uses: MAX_SEARCHES,
-        allowed_domains: allowedSearchDomains(),
-      },
-      {
-        name: "emit_candidates",
-        description: "Record the candidate recipe pages found.",
-        input_schema: SCHEMA,
-      },
-    ],
-    messages: [
-      {
-        role: "user",
-        content:
-          `Recipe name: ${recipe.name}\n` +
-          `Book: ${recipe.book || "(unknown)"}\n` +
-          `Author: ${recipe.author || "(unknown)"}`,
-      },
-    ],
-  });
+function errorMessage(err) {
+  return (
+    err?.error?.error?.message ||
+    (err instanceof Error ? err.message : String(err || ""))
+  );
+}
 
+/** Domains the API reports as not crawlable, e.g. "...not accessible...: ['a.com','b.com']". */
+function parseInaccessibleDomains(message) {
+  const m = /not accessible to our user agent:\s*\[([^\]]*)\]/i.exec(message || "");
+  if (!m) return [];
+  return [...m[1].matchAll(/['"]([^'"]+)['"]/g)].map((x) => x[1].toLowerCase());
+}
+
+function extractCandidates(res) {
   for (const block of res.content) {
     if (block.type === "tool_use" && block.name === "emit_candidates") {
       const list = block.input?.candidates;
@@ -125,4 +110,56 @@ export async function findCandidates(recipe) {
   }
   // Model answered in prose instead of the tool — fall back to its search hits.
   return urlsFromSearchResults(res.content);
+}
+
+export async function findCandidates(recipe) {
+  const api = getClient();
+  let domains = allowedSearchDomains();
+  let lastErr;
+
+  // Some trusted sites block Anthropic's crawler; the tool 400s if any such
+  // domain is in allowed_domains. Drop the ones it names and retry with the
+  // rest, so the search self-heals as site policies change.
+  for (let attempt = 0; attempt < 3 && domains.length > 0; attempt++) {
+    try {
+      const res = await api.messages.create({
+        model: MODEL,
+        max_tokens: 1500,
+        system: SYSTEM,
+        tools: [
+          {
+            type: "web_search_20250305",
+            name: "web_search",
+            max_uses: MAX_SEARCHES,
+            allowed_domains: domains,
+          },
+          {
+            name: "emit_candidates",
+            description: "Record the candidate recipe pages found.",
+            input_schema: SCHEMA,
+          },
+        ],
+        messages: [
+          {
+            role: "user",
+            content:
+              `Recipe name: ${recipe.name}\n` +
+              `Book: ${recipe.book || "(unknown)"}\n` +
+              `Author: ${recipe.author || "(unknown)"}`,
+          },
+        ],
+      });
+      return extractCandidates(res);
+    } catch (err) {
+      lastErr = err;
+      const blocked = parseInaccessibleDomains(errorMessage(err));
+      const pruned = domains.filter((d) => !blocked.includes(d.toLowerCase()));
+      if (err?.status === 400 && blocked.length && pruned.length < domains.length) {
+        domains = pruned;
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr || new Error("Web search has no accessible trusted domains left.");
 }
