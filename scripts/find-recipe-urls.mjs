@@ -242,9 +242,13 @@ async function main() {
       written += r.written;
       skipped += r.skipped;
     }
+    const spent = usageCost(usage, model).total;
+    const spentStr =
+      args.budget > 0 ? `$${spent.toFixed(2)} / $${args.budget}` : `$${spent.toFixed(2)}`;
     console.log(
       `  …${Math.min(start + CHUNK, limited.length)}/${limited.length} processed` +
-        (args.dryRun ? "" : ` · ${written} written so far`),
+        (args.dryRun ? "" : ` · ${written} written`) +
+        ` · ${spentStr} spent so far`,
     );
     if (stopped) {
       console.log(`\nReached ~$${args.budget} budget — stopping. Re-run anytime to continue.`);
