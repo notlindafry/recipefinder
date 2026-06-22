@@ -104,14 +104,38 @@ export default function RecipeCard({
     }
   }
 
-  // Reject/remove the proposed URL: clears the sheet's link cell so the recipe
-  // is un-linked again (and can be searched anew).
+  // Reject the proposed URL: record it to the recipe's rejected-links column so
+  // it's never suggested again, then clear the link cell so the recipe can be
+  // re-searched. Falls back to a plain clear if the sheet has no such column.
   async function onRejectLink() {
     setFindMsg(null);
-    const ok = await save("link", "");
-    if (ok) {
+    setErr(null);
+    setBusy(true);
+    try {
+      const res = await fetch("/api/recipe/reject-link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: recipe.id, url: link }),
+      });
+      if (res.status === 401) {
+        window.location.href = "/login";
+        return;
+      }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setErr(json.error || "Could not reject the link.");
+        return;
+      }
       setLink("");
-      setFindMsg("Link removed.");
+      setFindMsg(
+        json.remembered === false
+          ? "Link removed."
+          : "Link removed — it won't be suggested again.",
+      );
+    } catch {
+      setErr("Could not reach the server.");
+    } finally {
+      setBusy(false);
     }
   }
 

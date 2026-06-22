@@ -79,3 +79,24 @@ export function sanitizeUrlForSheet(raw) {
   if (/^[=+\-@\t\r]/.test(out)) return null; // never store something a sheet might evaluate
   return out;
 }
+
+/**
+ * Canonical key for deciding whether two URLs point at the "same page" — used to
+ * match a previously rejected URL against newly proposed candidates. Compares
+ * host (minus a leading "www.") + path, lower-cased, ignoring scheme, query,
+ * fragment, and any trailing slash. Ignoring the query means a re-proposed link
+ * with different tracking params still matches; in rare cases that treats two
+ * query-distinguished pages as one, an acceptable trade for reliable rejection.
+ */
+export function canonicalUrlForMatch(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  try {
+    const url = new URL(s);
+    const host = url.hostname.toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
+    const path = url.pathname.replace(/\/+$/, "");
+    return `${host}${path}`.toLowerCase();
+  } catch {
+    return s.toLowerCase().replace(/\/+$/, "");
+  }
+}

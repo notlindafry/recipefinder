@@ -1,4 +1,5 @@
 import { SignJWT, importPKCS8 } from "jose";
+import { canonicalUrlForMatch } from "@/scripts/lib/url-safety.mjs";
 
 // Optional Google Sheets write-back. Activates only when a service account is
 // configured. Reads stay on the public CSV; only writes use this path.
@@ -163,4 +164,41 @@ export async function updateRecipeCell(params: {
   }
 
   await writeCell(token, `${columnLetter(targetCol)}${row}`, value);
+}
+
+/**
+ * Reject the current link for a recipe: append the rejected URL to the
+ * rejected-links cell (de-duplicated, newline-separated) and clear the link
+ * cell, behind the same name-match safety check used for normal edits. The
+ * rejection is recorded first, so a failure clearing the link can't lose the
+ * fact that the URL was rejected.
+ */
+export async function rejectRecipeLink(params: {
+  row: number;
+  nameCol: number;
+  expectedName: string;
+  linkCol: number;
+  rejectedCol: number;
+  url: string;
+}): Promise<void> {
+  const { row, nameCol, expectedName, linkCol, rejectedCol, url } = params;
+  const token = await getAccessToken();
+
+  const liveName = await readCell(token, `${columnLetter(nameCol)}${row}`);
+  if (normalize(liveName) !== normalize(expectedName)) {
+    throw new Error(
+      "Safety check failed: the sheet row no longer matches this recipe. Refresh and try again.",
+    );
+  }
+
+  const existingRaw = await readCell(token, `${columnLetter(rejectedCol)}${row}`);
+  const existing = existingRaw
+    .split(/\s+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const already = new Set(existing.map(canonicalUrlForMatch));
+  if (!already.has(canonicalUrlForMatch(url))) existing.push(url);
+  await writeCell(token, `${columnLetter(rejectedCol)}${row}`, existing.join("\n"));
+
+  await writeCell(token, `${columnLetter(linkCol)}${row}`, "");
 }

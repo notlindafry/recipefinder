@@ -6,7 +6,7 @@
 import { findCandidates } from "./find-candidates.mjs";
 import { validateUrl } from "./validate-url.mjs";
 import { scoreCandidate, pickBest } from "./matching.mjs";
-import { sanitizeUrlForSheet } from "./url-safety.mjs";
+import { sanitizeUrlForSheet, canonicalUrlForMatch } from "./url-safety.mjs";
 
 const MAX_CANDIDATES_PER_RECIPE = 6;
 
@@ -19,11 +19,17 @@ const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
 
 /**
  * @param {{name:string, book:string, author:string}} recipe
+ * @param {{excludeUrls?: string[]}} [options] - URLs the user previously rejected
+ *        for this recipe; any candidate matching one is skipped (before and after
+ *        redirects), so a rejected page is never re-suggested.
  * @returns {Promise<{status:"matched"|"no_match"|"no_candidates", url?:string,
  *          score?:number, usage:{input:number,output:number,searches:number}}>}
  *          Throws if the search call itself fails (caller decides how to handle).
  */
-export async function findBestLink(recipe) {
+export async function findBestLink(recipe, options = {}) {
+  const exclude = new Set(
+    (options.excludeUrls || []).map(canonicalUrlForMatch).filter(Boolean),
+  );
   const { candidates, usage } = await findCandidates(recipe);
 
   // De-dup and cap how many we'll actually fetch/validate.
@@ -32,6 +38,7 @@ export async function findBestLink(recipe) {
   for (const c of candidates || []) {
     const key = norm(c.url);
     if (!c.url || seen.has(key)) continue;
+    if (exclude.has(canonicalUrlForMatch(c.url))) continue; // user rejected this URL before
     seen.add(key);
     unique.push(c);
     if (unique.length >= MAX_CANDIDATES_PER_RECIPE) break;
@@ -48,6 +55,7 @@ export async function findBestLink(recipe) {
     if (!v.accepted) continue;
     const safe = sanitizeUrlForSheet(v.finalUrl || c.url);
     if (!safe) continue;
+    if (exclude.has(canonicalUrlForMatch(safe))) continue; // rejected page reached via redirect
     const host = new URL(safe).hostname;
     const s = scoreCandidate(host, v.signals, { acceptAny: ACCEPT_ANY });
     if (!s.qualifies) continue;

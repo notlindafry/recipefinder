@@ -59,11 +59,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const result = await findBestLink({
-      name: recipe.name,
-      book: recipe.book,
-      author: recipe.author,
-    });
+    const result = await findBestLink(
+      { name: recipe.name, book: recipe.book, author: recipe.author },
+      { excludeUrls: recipe.rejectedLinks ?? [] },
+    );
     if (result.status !== "matched" || !result.url) {
       return NextResponse.json({ link: null, status: result.status });
     }

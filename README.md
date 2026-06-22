@@ -61,7 +61,8 @@ values (.csv)** → **Publish**. Copy the URL (it looks like
 
 The app expects your existing columns: **Book title, Author, Chapter name, Recipe name,
 Page #, Category, Main ingredient, Recipe link, Tried tag, Prep notes.** Column order
-doesn't matter — they're matched by name.
+doesn't matter — they're matched by name. Add an optional **Rejected links** column to
+have the app remember URLs you reject, so the finder never proposes them again.
 
 ### 2. Configure environment variables
 
@@ -227,7 +228,8 @@ you subscribe to — **Epicurious, America's Test Kitchen, and NYT Cooking**.
 when it's on a **recognized reputable site** _or_ it matches **name + book + author**
 strongly — so unknown sites need high confidence. Set it to `any` to write **every** safe
 direct match (maximum coverage). Either way, each result shows as a raw URL in the app with
-a **Reject** button so you can prune anything off.
+a **Reject** button so you can prune anything off. Rejecting a URL also records it (in the
+optional **Rejected links** column) so the finder won't propose that same URL again.
 
 **Re-runnable & idempotent.** It **never re-queries a recipe that already has a link**, so
 running it again after adding a new cookbook only does the new work. Configure the target

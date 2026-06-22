@@ -14,6 +14,8 @@ export interface Recipe {
   row?: number;
   /** Cuisine, if a pre-tagged data/cuisines.json is present. */
   cuisine?: string;
+  /** URLs the user rejected for this recipe; the finder never re-suggests them. */
+  rejectedLinks?: string[];
 }
 
 /** Structured interpretation of a natural-language query. */

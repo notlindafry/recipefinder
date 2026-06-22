@@ -8,6 +8,7 @@ interface SheetMeta {
   triedTagCol: number | null;
   notesCol: number | null;
   linkCol: number | null;
+  rejectedLinksCol: number | null;
   /** Row number (1-based) of the first data row (header is assumed at row 1). */
   firstDataRow: number;
 }
@@ -43,6 +44,8 @@ function mapHeader(raw: string): keyof Recipe | null {
   if (h.includes("category")) return "category";
   if (h.includes("main ingredient") || h === "ingredient" || h === "ingredients")
     return "ingredients";
+  // Must precede the "link" check below: "Rejected links" also contains "link".
+  if (h.includes("rejected")) return "rejectedLinks";
   if (h.includes("link") || h.includes("url")) return "link";
   if (h.includes("tried")) return "triedTag";
   if (h.includes("note") || h.includes("prep")) return "notes";
@@ -67,6 +70,7 @@ function rowToRecipe(
     link: "",
     triedTag: "",
     notes: "",
+    rejectedLinks: [],
     row: rowNumber,
   };
 
@@ -77,6 +81,12 @@ function rowToRecipe(
     if (field === "ingredients") {
       recipe.ingredients = clean
         .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    } else if (field === "rejectedLinks") {
+      // URLs can't contain spaces, so whitespace/newlines safely separate them.
+      recipe.rejectedLinks = clean
+        .split(/\s+/)
         .map((s) => s.trim())
         .filter(Boolean);
     } else if (field !== "id" && field !== "row" && field !== "cuisine") {
@@ -147,6 +157,7 @@ async function fetchAndParse(
     triedTagCol: colIndex.triedTag ?? null,
     notesCol: colIndex.notes ?? null,
     linkCol: colIndex.link ?? null,
+    rejectedLinksCol: colIndex.rejectedLinks ?? null,
     firstDataRow: 2,
   };
 

@@ -92,12 +92,14 @@ export const ALLOWED_PAYWALL_DOMAINS = new Set([
 
 /**
  * Domains to never propose, fetch, or write — even if otherwise reputable.
- * eatyourbooks.com indexes which book/page a recipe is in but doesn't host the
- * recipe itself, so it isn't a useful "online version." Add more (comma-
+ * These index or gate cookbook recipes behind a subscription rather than hosting
+ * a usable free "online version": eatyourbooks.com only indexes which book/page a
+ * recipe is in, and ckbk.com is a paid cookbook platform. Add more (comma-
  * separated) via the RECIPE_LINK_EXCLUDE env var.
  */
 export const EXCLUDED_DOMAINS = new Set([
   "eatyourbooks.com",
+  "ckbk.com",
   ...(process.env.RECIPE_LINK_EXCLUDE || "")
     .split(",")
     .map((s) => s.trim().toLowerCase())
