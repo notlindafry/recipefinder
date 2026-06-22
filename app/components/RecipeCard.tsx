@@ -35,6 +35,22 @@ export default function RecipeCard({
   const [findMsg, setFindMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Copy "Name — Book, p. N" to the clipboard (page/book dropped if absent), so
+  // the recipe is easy to paste into notes or a message. Client-only; no server.
+  async function onCopy() {
+    const ref = [recipe.name, recipe.book].filter(Boolean).join(" — ");
+    const text = recipe.page ? `${ref}, p. ${recipe.page}` : ref;
+    try {
+      await navigator.clipboard.writeText(text);
+      setErr(null);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setErr("Couldn't copy to the clipboard.");
+    }
+  }
 
   async function save(field: "triedTag" | "notes" | "link", value: string) {
     setBusy(true);
@@ -219,6 +235,15 @@ export default function RecipeCard({
         <span className="action-sep">|</span>
         <button type="button" className="link-btn" onClick={() => onSimilar(recipe.id)}>
           More Like This
+        </button>
+        <span className="action-sep">|</span>
+        <button
+          type="button"
+          className="link-btn"
+          aria-label={`Copy ${recipe.name} reference`}
+          onClick={onCopy}
+        >
+          {copied ? "✓ Copied" : "Copy"}
         </button>
 
         {canWrite && !link && (
