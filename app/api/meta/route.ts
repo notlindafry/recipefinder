@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRecipes, cuisineTaggingAvailable } from "@/lib/data";
 import { aiAvailable } from "@/lib/search";
 import { writeEnabled } from "@/lib/sheets";
-import { guard, serverError } from "@/lib/api";
+import { guard, serverError, sessionRole } from "@/lib/api";
 import type { MetaResponse } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   if (blocked) return blocked;
 
   try {
-    const recipes = await getRecipes();
+    const [recipes, role] = await Promise.all([getRecipes(), sessionRole(req)]);
     const meta: MetaResponse = {
       totalRecipes: recipes.length,
       books: sortedUnique(recipes.map((r) => r.book)),
@@ -31,6 +31,7 @@ export async function GET(req: NextRequest) {
         ai: aiAvailable(),
         cuisine: cuisineTaggingAvailable,
         writeback: writeEnabled(),
+        canEdit: writeEnabled() && role === "owner",
       },
     };
     return NextResponse.json(meta);

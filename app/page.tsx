@@ -91,7 +91,10 @@ export default function Home() {
 
   const savedIds = new Set(shortlist.map((r) => r.id));
 
-  const canEdit = meta?.features.writeback ?? false;
+  // canWrite: server can write at all (Find link / Reject — available to guests).
+  // canEdit: this user may change verdicts/notes (owner only).
+  const canWrite = meta?.features.writeback ?? false;
+  const canEdit = meta?.features.canEdit ?? false;
 
   function currentFilters(overrides?: Partial<UiFilters>): UiFilters {
     return {
@@ -400,6 +403,7 @@ export default function Home() {
                     key={recipe.id}
                     result={{ recipe, reason: "" }}
                     canEdit={canEdit}
+                    canWrite={canWrite}
                     onSimilar={moreLikeThis}
                     saved
                     onToggleSave={toggleSave}
@@ -432,6 +436,7 @@ export default function Home() {
                   <RecipeCard
                     result={{ recipe: c.recipe, reason: c.reason }}
                     canEdit={canEdit}
+                    canWrite={canWrite}
                     onSimilar={moreLikeThis}
                     saved={savedIds.has(c.recipe.id)}
                     onToggleSave={toggleSave}
@@ -466,6 +471,7 @@ export default function Home() {
                   key={result.recipe.id}
                   result={result}
                   canEdit={canEdit}
+                  canWrite={canWrite}
                   onSimilar={moreLikeThis}
                   saved={savedIds.has(result.recipe.id)}
                   onToggleSave={toggleSave}

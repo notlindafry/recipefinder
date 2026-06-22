@@ -6,7 +6,10 @@ import type { Recipe, SearchResult } from "@/lib/types";
 
 interface Props {
   result: SearchResult;
+  /** Owner-only: may change the verdict and prep notes. */
   canEdit: boolean;
+  /** Server can write to the sheet: enables Find link / Reject (owner + guests). */
+  canWrite: boolean;
   onSimilar: (id: number) => void;
   /** Whether this recipe is on the user's shortlist. */
   saved: boolean;
@@ -17,6 +20,7 @@ interface Props {
 export default function RecipeCard({
   result,
   canEdit,
+  canWrite,
   onSimilar,
   saved,
   onToggleSave,
@@ -175,7 +179,7 @@ export default function RecipeCard({
           <a href={link} target="_blank" rel="noreferrer noopener">
             {link}
           </a>
-          {canEdit && (
+          {canWrite && (
             <button
               type="button"
               className="link-btn reject-btn"
@@ -217,7 +221,7 @@ export default function RecipeCard({
           More Like This
         </button>
 
-        {canEdit && !link && (
+        {canWrite && !link && (
           <>
             <span className="action-sep">|</span>
             <button

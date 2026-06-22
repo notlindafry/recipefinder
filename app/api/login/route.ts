@@ -5,6 +5,7 @@ import {
   createSession,
   SESSION_COOKIE,
   SESSION_MAX_AGE,
+  type Role,
 } from "@/lib/auth";
 import { rateLimit } from "@/lib/ratelimit";
 import { clientIp, sameOrigin } from "@/lib/http";
@@ -17,6 +18,20 @@ function safeEqual(a: string, b: string): boolean {
   const ha = crypto.createHash("sha256").update(a).digest();
   const hb = crypto.createHash("sha256").update(b).digest();
   return crypto.timingSafeEqual(ha, hb);
+}
+
+/**
+ * Map a submitted password to a role: the owner password (APP_PASSWORD) grants
+ * full access; the optional guest password (APP_GUEST_PASSWORD) grants
+ * read-only access. Returns null when it matches neither.
+ */
+function roleForPassword(submitted: string): Role | null {
+  if (!submitted) return null;
+  const owner = process.env.APP_PASSWORD;
+  const guest = process.env.APP_GUEST_PASSWORD;
+  if (owner && safeEqual(submitted, owner)) return "owner";
+  if (guest && safeEqual(submitted, guest)) return "guest";
+  return null;
 }
 
 export async function POST(req: NextRequest) {
@@ -49,11 +64,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  if (!submitted || !safeEqual(submitted, process.env.APP_PASSWORD!)) {
+  const role = roleForPassword(submitted);
+  if (!role) {
     return NextResponse.json({ error: "Incorrect password." }, { status: 401 });
   }
 
-  const token = await createSession();
+  const token = await createSession(role);
   if (!token) {
     return NextResponse.json(
       { error: "Login is not configured on the server." },

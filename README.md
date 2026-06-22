@@ -128,6 +128,11 @@ The app is private by design:
   stored in an **httpOnly, Secure, SameSite=Lax** cookie that JavaScript can't read.
   Passwords are compared in constant time. Set `SESSION_SECRET` to a long random string
   (`openssl rand -base64 32`).
+- **Read-only guests (optional).** Set `APP_GUEST_PASSWORD` to a second password you can
+  share with friends. Guests can search, browse, and shortlist, but the server rejects
+  any attempt to change verdicts or prep notes — the role is recorded in the signed
+  session and enforced on the write route, not just hidden in the UI. Leave it unset to
+  allow only owner access.
 - **Abuse protection.** Per-IP rate limiting on login (brute force) and search
   (Claude-cost), a 300-character query cap, and filter-size caps. *(Rate limiting is
   in-memory/best-effort per serverless instance; for strict global limits, back it with

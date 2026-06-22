@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getRecipes, getSheetMeta, invalidateCache } from "@/lib/data";
 import { writeEnabled, updateRecipeCell } from "@/lib/sheets";
-import { guard, readJson, clampStr, serverError } from "@/lib/api";
+import { guard, readJson, clampStr, serverError, sessionRole } from "@/lib/api";
 import { TRIED_TAGS } from "@/lib/vocab";
 import { sanitizeUrlForSheet } from "@/scripts/lib/url-safety.mjs";
 
@@ -32,6 +32,17 @@ export async function POST(req: NextRequest) {
   }
   if (field !== "triedTag" && field !== "notes" && field !== "link") {
     return NextResponse.json({ error: "Unsupported field." }, { status: 400 });
+  }
+
+  // Verdicts and prep notes are owner-only; guests get read-only access to them.
+  // (Enforced here on the server — hiding the controls client-side isn't enough.)
+  if (field === "triedTag" || field === "notes") {
+    if ((await sessionRole(req)) !== "owner") {
+      return NextResponse.json(
+        { error: "Only the owner can change verdicts or notes." },
+        { status: 403 },
+      );
+    }
   }
 
   // Strict value validation (prevents writing arbitrary content to the sheet).

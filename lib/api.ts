@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimit } from "./ratelimit";
 import { clientIp, sameOrigin } from "./http";
+import { getSession, SESSION_COOKIE, type Role } from "./auth";
 import type { UiFilters } from "./types";
 
 const MAX_FILTER_VALUES = 60;
@@ -64,6 +65,16 @@ export function guard(
 export function serverError(err: unknown, message: string): NextResponse {
   console.error(err);
   return NextResponse.json({ error: message }, { status: 500 });
+}
+
+/**
+ * The role of the request's session, or null when there's no valid session.
+ * (Routes are already behind the auth middleware, so null here means the cookie
+ * was stripped or expired between the middleware check and the handler.)
+ */
+export async function sessionRole(req: NextRequest): Promise<Role | null> {
+  const session = await getSession(req.cookies.get(SESSION_COOKIE)?.value);
+  return session?.role ?? null;
 }
 
 export async function readJson(

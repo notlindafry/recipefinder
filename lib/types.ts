@@ -80,6 +80,9 @@ export interface MetaResponse {
   features: {
     ai: boolean;
     cuisine: boolean;
+    /** Server can write back to the sheet at all (service account configured). */
     writeback: boolean;
+    /** This user may edit verdicts/notes (owner role + writeback enabled). */
+    canEdit: boolean;
   };
 }

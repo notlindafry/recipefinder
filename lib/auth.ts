@@ -18,25 +18,40 @@ export function authConfigured(): boolean {
   return Boolean(process.env.APP_PASSWORD && secretKey());
 }
 
-/** Mint a signed session token. Returns null if auth isn't configured. */
-export async function createSession(): Promise<string | null> {
+/** Access tiers carried in the session. "owner" can edit; "guest" is read-only. */
+export type Role = "owner" | "guest";
+
+/** Mint a signed session token for a role. Returns null if auth isn't configured. */
+export async function createSession(role: Role): Promise<string | null> {
   const key = secretKey();
   if (!key) return null;
-  return new SignJWT({})
+  return new SignJWT({ role })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_MAX_AGE}s`)
     .sign(key);
 }
 
-/** Verify a session token. Edge-safe (uses Web Crypto via jose). */
-export async function verifySession(token: string | undefined): Promise<boolean> {
+/**
+ * Verify a session token and return its role, or null if missing/invalid.
+ * Edge-safe (uses Web Crypto via jose). A valid token with no role claim (e.g.
+ * one minted before roles existed) is treated as "guest" — least privilege, so
+ * a stale owner session can't keep edit access; the owner just logs in again.
+ */
+export async function getSession(
+  token: string | undefined,
+): Promise<{ role: Role } | null> {
   const key = secretKey();
-  if (!key || !token) return false;
+  if (!key || !token) return null;
   try {
-    await jwtVerify(token, key, { algorithms: ["HS256"] });
-    return true;
+    const { payload } = await jwtVerify(token, key, { algorithms: ["HS256"] });
+    return { role: payload.role === "owner" ? "owner" : "guest" };
   } catch {
-    return false;
+    return null;
   }
+}
+
+/** Whether a session token is valid (any role). Used by the middleware gate. */
+export async function verifySession(token: string | undefined): Promise<boolean> {
+  return (await getSession(token)) !== null;
 }
