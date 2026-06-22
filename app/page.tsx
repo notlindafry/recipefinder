@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { CATEGORIES, INGREDIENTS, TRIED_TAGS } from "@/lib/vocab";
 import type {
+  Recipe,
   SearchResponse,
   MenuResponse,
   MetaResponse,
@@ -12,6 +13,7 @@ import MultiSelect from "./components/MultiSelect";
 import RecipeCard from "./components/RecipeCard";
 
 const WANT_TO_MAKE = "I really want to make this";
+const SHORTLIST_KEY = "cookbook.shortlist";
 
 export default function Home() {
   const [query, setQuery] = useState("");
@@ -33,6 +35,13 @@ export default function Home() {
   const [searched, setSearched] = useState(false);
   const [meta, setMeta] = useState<MetaResponse | null>(null);
 
+  // Shortlist: recipes the user has saved to compare across separate searches.
+  // It lives outside the search state, so a new search never clears it, and it
+  // is persisted to localStorage so it also survives reloads.
+  const [shortlist, setShortlist] = useState<Recipe[]>([]);
+  const [shortlistOpen, setShortlistOpen] = useState(true);
+  const [hydrated, setHydrated] = useState(false);
+
   useEffect(() => {
     (async () => {
       try {
@@ -47,6 +56,40 @@ export default function Home() {
       }
     })();
   }, []);
+
+  // Load any previously saved shortlist once, on mount.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(SHORTLIST_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setShortlist(parsed as Recipe[]);
+      }
+    } catch {
+      /* corrupt or unavailable storage; start empty */
+    }
+    setHydrated(true);
+  }, []);
+
+  // Persist on change (but not before the initial load, or we'd clobber it).
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(SHORTLIST_KEY, JSON.stringify(shortlist));
+    } catch {
+      /* quota exceeded or storage disabled; ignore */
+    }
+  }, [shortlist, hydrated]);
+
+  const toggleSave = useCallback((recipe: Recipe) => {
+    setShortlist((prev) =>
+      prev.some((r) => r.id === recipe.id)
+        ? prev.filter((r) => r.id !== recipe.id)
+        : [...prev, recipe],
+    );
+  }, []);
+
+  const savedIds = new Set(shortlist.map((r) => r.id));
 
   const canEdit = meta?.features.writeback ?? false;
 
@@ -329,6 +372,44 @@ export default function Home() {
       </header>
 
       <main>
+        {shortlist.length > 0 && (
+          <section className="shortlist">
+            <div className="shortlist-head">
+              <button
+                type="button"
+                className="shortlist-toggle"
+                aria-expanded={shortlistOpen}
+                onClick={() => setShortlistOpen((o) => !o)}
+              >
+                <span className="shortlist-caret">{shortlistOpen ? "▼" : "▶"}</span>
+                ★ Your shortlist{" "}
+                <span className="shortlist-count">({shortlist.length})</span>
+              </button>
+              <button
+                type="button"
+                className="shortlist-clear"
+                onClick={() => setShortlist([])}
+              >
+                Clear
+              </button>
+            </div>
+            {shortlistOpen && (
+              <div className="results">
+                {shortlist.map((recipe) => (
+                  <RecipeCard
+                    key={recipe.id}
+                    result={{ recipe, reason: "" }}
+                    canEdit={canEdit}
+                    onSimilar={moreLikeThis}
+                    saved
+                    onToggleSave={toggleSave}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
         {loading && (
           <div className="status">
             <span className="spinner" />
@@ -352,6 +433,8 @@ export default function Home() {
                     result={{ recipe: c.recipe, reason: c.reason }}
                     canEdit={canEdit}
                     onSimilar={moreLikeThis}
+                    saved={savedIds.has(c.recipe.id)}
+                    onToggleSave={toggleSave}
                   />
                 </div>
               ))}
@@ -384,6 +467,8 @@ export default function Home() {
                   result={result}
                   canEdit={canEdit}
                   onSimilar={moreLikeThis}
+                  saved={savedIds.has(result.recipe.id)}
+                  onToggleSave={toggleSave}
                 />
               ))}
             </div>

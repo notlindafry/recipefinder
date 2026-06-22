@@ -2,15 +2,25 @@
 
 import { useState } from "react";
 import { TRIED_TAGS } from "@/lib/vocab";
-import type { SearchResult } from "@/lib/types";
+import type { Recipe, SearchResult } from "@/lib/types";
 
 interface Props {
   result: SearchResult;
   canEdit: boolean;
   onSimilar: (id: number) => void;
+  /** Whether this recipe is on the user's shortlist. */
+  saved: boolean;
+  /** Add/remove this recipe from the shortlist. */
+  onToggleSave: (recipe: Recipe) => void;
 }
 
-export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
+export default function RecipeCard({
+  result,
+  canEdit,
+  onSimilar,
+  saved,
+  onToggleSave,
+}: Props) {
   const { recipe } = result;
   const [triedTag, setTriedTag] = useState(recipe.triedTag);
   const [notes, setNotes] = useState(recipe.notes);
@@ -170,6 +180,15 @@ export default function RecipeCard({ result, canEdit, onSimilar }: Props) {
 
       {/* Actions */}
       <div className="card-actions">
+        <button
+          type="button"
+          className={`link-btn save-btn${saved ? " is-saved" : ""}`}
+          aria-pressed={saved}
+          onClick={() => onToggleSave(recipe)}
+        >
+          {saved ? "★ Saved" : "☆ Save"}
+        </button>
+        <span className="action-sep">|</span>
         <button type="button" className="link-btn" onClick={() => onSimilar(recipe.id)}>
           More Like This
         </button>

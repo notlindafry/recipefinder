@@ -513,6 +513,66 @@ form.search {
   border-color: #3a4a6e;
 }
 
+.save-btn.is-saved {
+  color: var(--accent-bright);
+  font-weight: 600;
+}
+
+.shortlist {
+  margin: 26px 0 8px;
+  border: 1px solid var(--accent-deep);
+  background: var(--accent-soft);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.shortlist-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.shortlist-toggle {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--cream);
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.shortlist-caret {
+  color: var(--accent-bright);
+  font-size: 11px;
+}
+
+.shortlist-count {
+  color: var(--accent-bright);
+  font-weight: 400;
+}
+
+.shortlist-clear {
+  background: none;
+  border: none;
+  color: var(--accent-bright);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.shortlist-clear:hover {
+  text-decoration: underline;
+}
+
+.shortlist .results {
+  margin-top: 12px;
+}
+
 .menu-course {
   display: flex;
   flex-direction: column;
