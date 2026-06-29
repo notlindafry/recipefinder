@@ -37,6 +37,7 @@ export const INGREDIENTS = [
 export const TRIED_TAGS = [
   "Almost healthy",
   "Cheat day",
+  "cooked; pending verdict",
   "Diet friendly",
   "Don't make again",
   "Guest-worthy",
