@@ -220,7 +220,12 @@ export default function RecipeCard({
         {triedTag && <span className="tag tag-tried">{triedTag}</span>}
       </div>
 
-      {notes && !editingNote && <div className="card-note">📝 {notes}</div>}
+      {notes && !editingNote && (
+        <div className="card-note">
+          <span className="card-note-label">📝 Linda&apos;s note</span>
+          {notes}
+        </div>
+      )}
 
       {/* Actions */}
       <div className="card-actions">
