@@ -38,7 +38,6 @@ function mapHeader(raw: string): keyof Recipe | null {
   const h = raw.toLowerCase().replace(/\s+/g, " ").trim();
   if (h.includes("book")) return "book";
   if (h.includes("author")) return "author";
-  if (h.includes("chapter")) return "chapter";
   if (h.includes("recipe name") || h === "name" || h === "recipe") return "name";
   if (h.includes("page")) return "page";
   if (h.includes("category")) return "category";
@@ -62,7 +61,6 @@ function rowToRecipe(
     id,
     book: "",
     author: "",
-    chapter: "",
     name: "",
     page: "",
     category: "",

@@ -2,7 +2,6 @@ export interface Recipe {
   id: number;
   book: string;
   author: string;
-  chapter: string;
   name: string;
   page: string;
   category: string;

@@ -139,7 +139,7 @@ async function parseQuery(api: Anthropic, query: string): Promise<QuerySpec> {
 // ---------------------------------------------------------------------------
 
 function searchableText(r: Recipe): string {
-  return [r.name, r.chapter, r.book, r.author, r.notes].join(" ").toLowerCase();
+  return [r.name, r.book, r.author, r.notes].join(" ").toLowerCase();
 }
 
 function eq(a: string, b: string): boolean {
@@ -309,7 +309,7 @@ const RERANK_SCHEMA: Anthropic.Tool.InputSchema = {
 
 function candidateLine(r: Recipe): string {
   const ing = r.ingredients.join(", ") || "—";
-  return `${r.id}: ${r.name} | ${r.book} (${r.author}) | ${r.chapter} | ${r.category} | ${ing}`;
+  return `${r.id}: ${r.name} | ${r.book} (${r.author}) | ${r.category} | ${ing}`;
 }
 
 async function rerank(

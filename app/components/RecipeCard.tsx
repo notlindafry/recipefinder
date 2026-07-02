@@ -176,14 +176,8 @@ export default function RecipeCard({
         </span>
       </h3>
 
-      {/* Line 2: author · chapter */}
-      {(recipe.author || recipe.chapter) && (
-        <div className="meta">
-          {recipe.author}
-          {recipe.author && recipe.chapter && " · "}
-          {recipe.chapter}
-        </div>
-      )}
+      {/* Line 2: author */}
+      {recipe.author && <div className="meta">{recipe.author}</div>}
 
       {/* Supplemental info */}
       {result.reason && <div className="reason">{result.reason}</div>}

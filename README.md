@@ -3,7 +3,7 @@
 Search your personal cookbook catalogue (a Google Sheet of 5,000+ recipes across your
 cookbooks) in plain English — _"a soup with chicken and pasta"_, _"italian eggplant
 dishes"_, _"guest-worthy desserts I haven't tried"_ — and get back the exact book,
-author, chapter, and page to turn to.
+author, and page to turn to.
 
 Built with **Next.js** and powered by **Claude**, which understands what you mean
 (mapping "chicken" → `Poultry`, "soup" → `Soup or stew`, recognizing that "Caprese" is
@@ -59,7 +59,7 @@ values (.csv)** → **Publish**. Copy the URL (it looks like
 > to keep the sheet fully private, switch to the Google Sheets API (service account) —
 > the data layer in `lib/data.ts` is the only thing that would change.
 
-The app expects your existing columns: **Book title, Author, Chapter name, Recipe name,
+The app expects your existing columns: **Book title, Author, Recipe name,
 Page #, Category, Main ingredient, Recipe link, Tried tag, Prep notes.** Column order
 doesn't matter — they're matched by name. Add an optional **Rejected links** column to
 have the app remember URLs you reject, so the finder never proposes them again.
