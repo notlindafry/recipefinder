@@ -8,7 +8,7 @@ import { sanitizeUrlForSheet } from "@/scripts/lib/url-safety.mjs";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const ALLOWED_TAGS = new Set<string>([...TRIED_TAGS, ""]);
+const ALLOWED_TAGS = new Set<string>(TRIED_TAGS);
 const MAX_NOTE_LEN = 500;
 
 export async function POST(req: NextRequest) {
@@ -48,10 +48,20 @@ export async function POST(req: NextRequest) {
   // Strict value validation (prevents writing arbitrary content to the sheet).
   let value: string;
   if (field === "triedTag") {
-    value = clampStr(body.value, 80);
-    if (!ALLOWED_TAGS.has(value)) {
-      return NextResponse.json({ error: "Invalid verdict value." }, { status: 400 });
+    // One or more verdicts, comma-separated. Validate and de-dupe each; an empty
+    // string clears all verdicts.
+    const parts = clampStr(body.value, 400)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const seen = new Set<string>();
+    for (const part of parts) {
+      if (!ALLOWED_TAGS.has(part)) {
+        return NextResponse.json({ error: "Invalid verdict value." }, { status: 400 });
+      }
+      seen.add(part);
     }
+    value = [...seen].join(", ");
   } else if (field === "link") {
     // Empty = reject/remove the link. Non-empty must be a clean trusted https URL.
     const raw = clampStr(body.value, 2048);

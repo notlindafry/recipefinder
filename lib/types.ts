@@ -7,7 +7,8 @@ export interface Recipe {
   category: string;
   ingredients: string[];
   link: string;
-  triedTag: string;
+  /** The user's personal verdicts (a recipe can carry more than one). */
+  triedTags: string[];
   notes: string;
   /** 1-based row number in the source sheet (for write-back). */
   row?: number;

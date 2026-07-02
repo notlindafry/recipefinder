@@ -26,7 +26,7 @@ export default function RecipeCard({
   onToggleSave,
 }: Props) {
   const { recipe } = result;
-  const [triedTag, setTriedTag] = useState(recipe.triedTag);
+  const [triedTags, setTriedTags] = useState<string[]>(recipe.triedTags);
   const [notes, setNotes] = useState(recipe.notes);
   const [editingNote, setEditingNote] = useState(false);
   const [draftNote, setDraftNote] = useState(recipe.notes);
@@ -36,6 +36,9 @@ export default function RecipeCard({
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Verdicts not yet applied — the only ones the "Add verdict" dropdown offers.
+  const availableVerdicts = TRIED_TAGS.filter((t) => !triedTags.includes(t));
 
   // Copy "Name — Book, p. N" to the clipboard (page/book dropped if absent), so
   // the recipe is easy to paste into notes or a message. Client-only; no server.
@@ -79,11 +82,13 @@ export default function RecipeCard({
     }
   }
 
-  async function onVerdictChange(value: string) {
-    const prev = triedTag;
-    setTriedTag(value);
-    const ok = await save("triedTag", value);
-    if (!ok) setTriedTag(prev);
+  // Persist the full verdict set (a recipe can carry more than one). Optimistic:
+  // reverts to the previous set if the save fails.
+  async function updateVerdicts(next: string[]) {
+    const prev = triedTags;
+    setTriedTags(next);
+    const ok = await save("triedTag", next.join(", "));
+    if (!ok) setTriedTags(prev);
   }
 
   async function onSaveNote() {
@@ -211,7 +216,22 @@ export default function RecipeCard({
             {i}
           </span>
         ))}
-        {triedTag && <span className="tag tag-tried">{triedTag}</span>}
+        {triedTags.map((t) => (
+          <span className="tag tag-tried" key={t}>
+            {t}
+            {canEdit && (
+              <button
+                type="button"
+                className="tag-remove"
+                aria-label={`Remove verdict ${t}`}
+                disabled={busy}
+                onClick={() => updateVerdicts(triedTags.filter((x) => x !== t))}
+              >
+                ×
+              </button>
+            )}
+          </span>
+        ))}
       </div>
 
       {notes && !editingNote && (
@@ -263,14 +283,22 @@ export default function RecipeCard({
           <>
             <span className="action-sep">|</span>
             <label className="verdict-edit">
-              <span className="sr-only">Set Verdict</span>
+              <span className="sr-only">Add verdict</span>
               <select
-                value={triedTag}
-                disabled={busy}
-                onChange={(e) => onVerdictChange(e.target.value)}
+                value=""
+                disabled={busy || availableVerdicts.length === 0}
+                onChange={(e) => {
+                  if (e.target.value) updateVerdicts([...triedTags, e.target.value]);
+                }}
               >
-                <option value="">Set Verdict…</option>
-                {TRIED_TAGS.map((t) => (
+                <option value="">
+                  {availableVerdicts.length === 0
+                    ? "All verdicts set"
+                    : triedTags.length
+                      ? "Add verdict…"
+                      : "Set Verdict…"}
+                </option>
+                {availableVerdicts.map((t) => (
                   <option key={t} value={t}>
                     {t}
                   </option>

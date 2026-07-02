@@ -173,10 +173,13 @@ export function effectiveSpec(parsed: QuerySpec | null, ui?: UiFilters): QuerySp
 function passesHardFilters(r: Recipe, spec: QuerySpec, ui?: UiFilters): boolean {
   if (spec.categories.length && !spec.categories.some((c) => eq(c, r.category)))
     return false;
-  if (spec.triedTags.length && !spec.triedTags.some((t) => eq(t, r.triedTag)))
+  if (
+    spec.triedTags.length &&
+    !spec.triedTags.some((t) => r.triedTags.some((rt) => eq(t, rt)))
+  )
     return false;
-  if (spec.untriedOnly && r.triedTag) return false;
-  if (spec.triedOnly && !r.triedTag) return false;
+  if (spec.untriedOnly && r.triedTags.length) return false;
+  if (spec.triedOnly && !r.triedTags.length) return false;
   if (spec.hasLink && !r.link) return false;
   if (
     spec.books.length &&

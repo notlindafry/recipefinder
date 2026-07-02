@@ -46,7 +46,7 @@ function mapHeader(raw: string): keyof Recipe | null {
   // Must precede the "link" check below: "Rejected links" also contains "link".
   if (h.includes("rejected")) return "rejectedLinks";
   if (h.includes("link") || h.includes("url")) return "link";
-  if (h.includes("tried")) return "triedTag";
+  if (h.includes("tried")) return "triedTags";
   if (h.includes("note") || h.includes("prep")) return "notes";
   return null;
 }
@@ -66,7 +66,7 @@ function rowToRecipe(
     category: "",
     ingredients: [],
     link: "",
-    triedTag: "",
+    triedTags: [],
     notes: "",
     rejectedLinks: [],
     row: rowNumber,
@@ -78,6 +78,13 @@ function rowToRecipe(
     const clean = (value ?? "").trim();
     if (field === "ingredients") {
       recipe.ingredients = clean
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+    } else if (field === "triedTags") {
+      // A recipe can hold more than one verdict; they're stored comma-separated
+      // in the cell. No verdict value contains a comma, so this is unambiguous.
+      recipe.triedTags = clean
         .split(",")
         .map((s) => s.trim())
         .filter(Boolean);
@@ -152,7 +159,7 @@ async function fetchAndParse(
 
   const meta: SheetMeta = {
     nameCol: colIndex.name ?? null,
-    triedTagCol: colIndex.triedTag ?? null,
+    triedTagCol: colIndex.triedTags ?? null,
     notesCol: colIndex.notes ?? null,
     linkCol: colIndex.link ?? null,
     rejectedLinksCol: colIndex.rejectedLinks ?? null,
