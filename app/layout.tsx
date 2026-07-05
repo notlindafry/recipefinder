@@ -2,16 +2,17 @@ import type { Metadata, Viewport } from "next";
 import { Space_Grotesk, Inter } from "next/font/google";
 import "./globals.css";
 
+// Canonical shared fonts (single source of truth: vibe-shelf). Loaded as
+// variable fonts — no weight array — and self-hosted by next/font at build,
+// so every weight is available and there is no external font request.
 const sans = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
   variable: "--font-sans",
   display: "swap",
 });
 
 const serif = Space_Grotesk({
   subsets: ["latin"],
-  weight: ["500", "600", "700"],
   variable: "--font-serif",
   display: "swap",
 });

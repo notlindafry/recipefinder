@@ -1,16 +1,20 @@
 :root {
   color-scheme: dark;
+  /* Canonical shared palette (single source of truth: vibe-shelf).
+     recipefinder keeps its own token names and maps their values to the
+     canonical ones; derived tokens use color-mix() so they follow the
+     palette with no new hues. */
   --bg: #0f120d;
   --surface: #1d231c;
-  --surface-2: #232b22;
+  --surface-2: color-mix(in srgb, var(--surface) 84%, var(--accent));
   --ink: #e6e4db;
-  --muted: rgba(230, 228, 219, 0.6);
-  --line: rgba(230, 228, 219, 0.14);
+  --muted: color-mix(in srgb, var(--ink), transparent 40%);
+  --line: color-mix(in srgb, var(--accent), transparent 80%);
   --accent: #7d9b83;
   --accent-bright: #93ae99;
   --accent-deep: #1d231c;
-  --accent-soft: rgba(125, 155, 131, 0.12);
-  --cream: #e6e4db;
+  --accent-soft: color-mix(in srgb, var(--accent), transparent 84%);
+  --cream: #ffffff;
   --chip: #1d231c;
   --shadow: none;
 }
