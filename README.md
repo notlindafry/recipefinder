@@ -77,7 +77,9 @@ Then fill in `.env.local`:
   natural-language search)
 - `ANTHROPIC_MODEL` — optional, defaults to `claude-haiku-4-5` (fast + low cost). Use
   `claude-sonnet-4-6` or `claude-opus-4-8` for higher-quality understanding.
-- `SHEET_CACHE_TTL_SECONDS` — optional, defaults to `300`.
+- `SHEET_CACHE_TTL_SECONDS` — optional, defaults to `300`. To skip the cache on
+  demand (e.g. right after adding rows in the sheet), request `/api/meta?refresh=1`,
+  which re-fetches the CSV immediately instead of waiting out this TTL.
 
 ### 3. Install & run
 
