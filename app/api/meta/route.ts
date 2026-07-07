@@ -18,8 +18,15 @@ export async function GET(req: NextRequest) {
   const blocked = guard(req, "meta", 60, 60 * 1000);
   if (blocked) return blocked;
 
+  // `?refresh=1` bypasses the in-memory sheet cache and re-fetches the CSV, so
+  // freshly added rows show up without waiting out SHEET_CACHE_TTL_SECONDS.
+  const forceRefresh = req.nextUrl.searchParams.get("refresh") === "1";
+
   try {
-    const [recipes, role] = await Promise.all([getRecipes(), sessionRole(req)]);
+    const [recipes, role] = await Promise.all([
+      getRecipes(forceRefresh),
+      sessionRole(req),
+    ]);
     const meta: MetaResponse = {
       totalRecipes: recipes.length,
       books: sortedUnique(recipes.map((r) => r.book)),
