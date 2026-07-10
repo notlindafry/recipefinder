@@ -781,3 +781,52 @@ a:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+
+/* Transparent by default so desktop layout is unchanged; becomes a real
+   flex row on mobile (see media query below). */
+.filter-selects {
+  display: contents;
+}
+
+/* On narrow screens, keep the three filter dropdowns together on one row. */
+@media (max-width: 560px) {
+  /* Own non-wrapping row spanning the full width, so the trailing
+     "More filters" button drops to the next line instead of wrapping a
+     dropdown. */
+  .filter-selects {
+    display: flex;
+    flex: 1 1 100%;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  /* Size to content and shrink proportionally, so the wider labels keep
+     more room and stay legible rather than all collapsing to "Any…". */
+  .filter-selects .ms {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .filter-selects .ms-trigger {
+    width: 100%;
+    min-width: 0;
+    padding: 9px 10px;
+    font-size: 13px;
+  }
+
+  .filter-selects .ms-summary {
+    max-width: none;
+  }
+
+  /* Keep panels within the viewport so they don't cause horizontal scroll. */
+  .ms-panel {
+    min-width: 0;
+    width: max(100%, 200px);
+    max-width: calc(100vw - 32px);
+  }
+
+  .filter-selects .ms:not(:first-child) .ms-panel {
+    left: auto;
+    right: 0;
+  }
+}

@@ -290,26 +290,28 @@ export default function Home() {
         </div>
 
         <div className="filters">
-          <MultiSelect
-            label="Any category"
-            options={CATEGORIES.filter((c) => c !== "I don't know")}
-            selected={categories}
-            onChange={setCategories}
-          />
-          <MultiSelect
-            label="Any main ingredient"
-            options={INGREDIENTS.filter(
-              (i) => i !== "I don't know" && i !== "N/A" && i !== "Other",
-            )}
-            selected={ingredients}
-            onChange={setIngredients}
-          />
-          <MultiSelect
-            label="Any verdict"
-            options={TRIED_TAGS}
-            selected={triedTags}
-            onChange={setTriedTags}
-          />
+          <div className="filter-selects">
+            <MultiSelect
+              label="Any category"
+              options={CATEGORIES.filter((c) => c !== "I don't know")}
+              selected={categories}
+              onChange={setCategories}
+            />
+            <MultiSelect
+              label="Any main ingredient"
+              options={INGREDIENTS.filter(
+                (i) => i !== "I don't know" && i !== "N/A" && i !== "Other",
+              )}
+              selected={ingredients}
+              onChange={setIngredients}
+            />
+            <MultiSelect
+              label="Any verdict"
+              options={TRIED_TAGS}
+              selected={triedTags}
+              onChange={setTriedTags}
+            />
+          </div>
           <button
             type="button"
             className="clear"
