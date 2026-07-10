@@ -1,0 +1,53 @@
+name: Tag cuisines
+
+# Keeps data/cuisines.json current as you add books. Runs on a schedule and can also
+# be triggered by hand from the Actions tab. Tags only recipes it hasn't seen, commits
+# the updated file if anything changed, and lets Vercel redeploy.
+
+on:
+  schedule:
+    - cron: "0 9 * * *"   # daily at 09:00 UTC (~1-2am Pacific). Adjust freely.
+  workflow_dispatch: {}
+
+concurrency:
+  group: tag-cuisines
+  cancel-in-progress: false
+
+permissions:
+  contents: write   # needed to commit the updated data/cuisines.json
+
+jobs:
+  tag-cuisines:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Tag new recipes
+        shell: bash
+        env:
+          SHEET_CSV_URL: ${{ secrets.SHEET_CSV_URL }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ secrets.ANTHROPIC_MODEL }}   # optional
+        run: |
+          if [ -z "$SHEET_CSV_URL" ] || [ -z "$ANTHROPIC_API_KEY" ]; then
+            echo "::error::Missing secrets. Add SHEET_CSV_URL and ANTHROPIC_API_KEY under Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          npm run tag-cuisines
+      - name: Commit updated tags if changed
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data/cuisines.json
+          if git diff --staged --quiet; then
+            echo "No new cuisine tags; nothing to commit."
+          else
+            git commit -m "chore: update cuisine tags"
+            git push
+          fi
