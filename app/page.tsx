@@ -279,13 +279,13 @@ export default function Home() {
 
         <div className="actions">
           <button type="button" className="action" onClick={doMenu} disabled={loading}>
-            🍽 Plan a menu
+            Plan a menu
           </button>
           <button type="button" className="action" onClick={surprise} disabled={loading}>
-            🎲 Surprise me
+            Surprise me
           </button>
           <button type="button" className="action" onClick={wantToMake} disabled={loading}>
-            ★ Want to make
+            Want to make
           </button>
         </div>
 
