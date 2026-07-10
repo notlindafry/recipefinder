@@ -168,14 +168,64 @@ refuses if it no longer matches — so a row-mapping drift can never overwrite t
 recipe. Writes use `RAW` mode, so a note starting with `=` is stored as text, not a
 formula. (Assumes the recipe tab has a single header row at row 1.)
 
-**Cuisine filter:** run the tagger once to label every recipe's cuisine with Claude:
+**Cuisine filter (automated).** The app shows a **Cuisine** filter driven by
+`data/cuisines.json`, which is kept current for you by a scheduled GitHub Action — no
+terminal, no manual re-runs.
 
-```bash
-SHEET_CSV_URL=... ANTHROPIC_API_KEY=... node scripts/tag-cuisines.mjs
-```
+- **How it stays current.** The **Tag cuisines** workflow
+  (`.github/workflows/tag-cuisines.yml`) runs daily and on demand. It calls
+  `npm run tag-cuisines`, which reads your sheet, tags **only recipes it hasn't seen
+  before** (incremental — no re-tagging the whole catalogue, no wasted API calls), merges
+  them into `data/cuisines.json`, and commits the file **only when something changed**.
+  Vercel then redeploys on its own. A run that finds no new recipes rewrites the file
+  byte-for-byte and produces no commit.
+- **One secret to add (one time).** The link finder already put `ANTHROPIC_API_KEY` in the
+  repo's secrets, so the only new secret is the sheet link. In the repo:
+  **Settings → Secrets and variables → Actions → New repository secret**. Name it
+  `SHEET_CSV_URL` and set it to the published CSV link (the `output=csv` link — the same one
+  in your local `.env`, **not** the sheet's edit URL). `ANTHROPIC_MODEL` is optional; unset,
+  the script uses `claude-haiku-4-5`.
+- **Run it on demand.** Actions tab → **Tag cuisines** → **Run workflow** for an immediate
+  pass, or just wait for the daily run. (Google's published CSV can lag a few minutes behind
+  sheet edits; if a run right after adding books shows a low "new to tag" count, wait a
+  couple of minutes and re-run.)
+- **Locally (optional).** `SHEET_CSV_URL=... ANTHROPIC_API_KEY=... npm run tag-cuisines`
+  does the same incremental tagging and writes `data/cuisines.json`; commit it.
 
-This writes `data/cuisines.json`; commit it, and the app shows a **Cuisine** filter.
-Re-run after adding lots of recipes.
+Because the repo is public, note that the workflow uses only `schedule` and
+`workflow_dispatch` (never a `pull_request` trigger), so repo secrets are never exposed to
+fork PRs; `data/cuisines.json` holds only cuisine strings — no secrets, no personal data.
+
+---
+
+## Updating the cookbook library (adding a new book)
+
+This is the recurring routine for adding a cookbook to the catalogue. Do these five steps
+in order; after the last one, the app updates itself — new recipes show up in search, and
+the live **Cuisine** filter re-tags only what's new.
+
+1. **Load the book's ISBN into your [Eat Your Books](https://www.eatyourbooks.com/)
+   library.** This indexes the book so its recipes become available to export.
+2. **Export the recipes to CSV.** In Eat Your Books, search for the book in *your* library,
+   open it, view it **as recipes**, and export to CSV. **Export at most 200 recipes per
+   file** — if the book has more, split it across multiple exports.
+3. **Format the CSV in the relevant Chat project.** Load the exported CSV into the Chat
+   project set up for cookbook formatting. It reshapes the columns to match the sheet and
+   **flags any categorization it isn't sure about as `UNSURE`** — scan the output for
+   `UNSURE` and fix those rows by hand before continuing.
+4. **Paste the results into the cookbook library Google Sheet.** Append the formatted rows
+   to the recipe tab, matching the existing columns (Book title, Author, Recipe name,
+   Page #, Category, Main ingredient, …). Column order doesn't matter — they're matched by
+   name.
+5. **Run the Tag cuisines Action.** Actions tab → **Tag cuisines** → **Run workflow** (or
+   wait for the daily run). It tags **only the newly-added recipes**, commits
+   `data/cuisines.json` if anything changed, and Vercel redeploys — so the new book lands in
+   search and in the **Cuisine** filter automatically. Setup and behavior details are in
+   [Cuisine filter (automated)](#optional-write-back-and-cuisine-tagging) above.
+
+> Tip: the published CSV Google exposes to the Action can lag a few minutes behind edits to
+> the sheet. If step 5 reports a low "new to tag" count right after pasting, wait a couple
+> of minutes and re-run the workflow.
 
 ---
 
@@ -294,7 +344,7 @@ lib/
   types.ts            # shared types
 scripts/
   find-recipe-urls.mjs    # scan trusted sites for recipe links, write to the sheet
-  tag-cuisines.mjs        # batch-tag cuisines
+  tag-cuisines.mjs        # incrementally tag cuisines (only new recipes), merge into data/cuisines.json
   lib/                    # reputation map, URL safety, validation gate, matching (+ tests)
 ```
 

@@ -8,7 +8,7 @@
 //
 // Honors ANTHROPIC_API_KEY / CLAUDE_API_KEY / claude_api_key and ANTHROPIC_MODEL.
 
-import { writeFileSync, mkdirSync } from "node:fs";
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import Papa from "papaparse";
@@ -94,11 +94,27 @@ async function main() {
   }
   console.log(`Parsed ${recipes.length} recipes.`);
 
-  const client = new Anthropic({ apiKey });
-  const out = {};
+  // Incremental: start from existing tags, only tag recipes we haven't seen.
+  let out = {};
+  if (existsSync(OUT)) {
+    try {
+      out = JSON.parse(readFileSync(OUT, "utf8"));
+    } catch {
+      console.error(
+        `Existing ${OUT} is not valid JSON; refusing to overwrite. Fix or delete it, then re-run.`
+      );
+      process.exit(1);
+    }
+  }
 
-  for (let start = 0; start < recipes.length; start += BATCH) {
-    const batch = recipes.slice(start, start + BATCH);
+  const already = new Set(Object.keys(out));
+  const todo = recipes.filter((r) => !already.has(key(r.book, r.name)));
+  console.log(`${recipes.length} recipes total, ${todo.length} new to tag.`);
+
+  const client = new Anthropic({ apiKey });
+
+  for (let start = 0; start < todo.length; start += BATCH) {
+    const batch = todo.slice(start, start + BATCH);
     const list = batch
       .map((r, i) => `${i}: ${r.name} | ${r.book} | ${r.chapter}`)
       .join("\n");
@@ -107,9 +123,7 @@ async function main() {
       model: MODEL,
       max_tokens: 4000,
       system: SYSTEM,
-      tools: [
-        { name: "emit", description: "Record cuisines.", input_schema: SCHEMA },
-      ],
+      tools: [{ name: "emit", description: "Record cuisines.", input_schema: SCHEMA }],
       tool_choice: { type: "tool", name: "emit" },
       messages: [{ role: "user", content: `Recipes:\n${list}` }],
     });
@@ -122,12 +136,12 @@ async function main() {
         out[key(r.book, r.name)] = cuisine.trim();
       }
     }
-    console.log(`Tagged ${Math.min(start + BATCH, recipes.length)}/${recipes.length}…`);
+    console.log(`Tagged ${Math.min(start + BATCH, todo.length)}/${todo.length} new…`);
   }
 
   mkdirSync(dirname(OUT), { recursive: true });
   writeFileSync(OUT, JSON.stringify(out, null, 0) + "\n");
-  console.log(`Wrote ${Object.keys(out).length} cuisine tags to ${OUT}`);
+  console.log(`Wrote ${Object.keys(out).length} cuisine tags total to ${OUT}.`);
 }
 
 main().catch((e) => {
