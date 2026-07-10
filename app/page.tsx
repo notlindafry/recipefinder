@@ -292,13 +292,13 @@ export default function Home() {
         <div className="filters">
           <div className="filter-selects">
             <MultiSelect
-              label="Any category"
+              label="Category"
               options={CATEGORIES.filter((c) => c !== "I don't know")}
               selected={categories}
               onChange={setCategories}
             />
             <MultiSelect
-              label="Any main ingredient"
+              label="Main ingredient"
               options={INGREDIENTS.filter(
                 (i) => i !== "I don't know" && i !== "N/A" && i !== "Other",
               )}
@@ -306,7 +306,7 @@ export default function Home() {
               onChange={setIngredients}
             />
             <MultiSelect
-              label="Any verdict"
+              label="Verdict"
               options={TRIED_TAGS}
               selected={triedTags}
               onChange={setTriedTags}
