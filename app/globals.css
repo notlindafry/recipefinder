@@ -15,6 +15,8 @@
   --accent-deep: #1d231c;
   --accent-soft: color-mix(in srgb, var(--accent), transparent 84%);
   --cream: #ffffff;
+  --text-strong: #ffffff;
+  --font-display: var(--font-serif), "Space Grotesk", system-ui, sans-serif;
   --chip: #1d231c;
   --shadow: none;
 }
@@ -49,19 +51,18 @@ header.hero {
   margin-bottom: 28px;
 }
 
-.hero h1 {
-  font-family: var(--font-serif), "Space Grotesk", ui-sans-serif, system-ui,
-    sans-serif;
+.wordmark {
+  font-family: var(--font-display);
   font-weight: 700;
-  font-size: clamp(32px, 6.5vw, 52px);
+  font-size: 26px;
   margin: 0 0 6px;
   letter-spacing: -0.02em;
-  color: var(--cream);
+  color: var(--text-strong);
   text-align: left;
 }
 
-.hero h1 .hyphen {
-  color: var(--accent-bright);
+.wordmark .dash {
+  color: var(--accent);
 }
 
 .hero p {
