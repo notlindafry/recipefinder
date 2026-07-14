@@ -4,16 +4,18 @@ import "./globals.css";
 
 // Canonical shared fonts (single source of truth: vibe-shelf). Loaded as
 // variable fonts — no weight array — and self-hosted by next/font at build,
-// so every weight is available and there is no external font request.
-const sans = Inter({
+// so every weight is available and there is no external font request. The
+// canonical CSS variables are --font-body (Inter) and --font-display
+// (Space Grotesk); next/font sets them on <html> and globals.css reads them.
+const body = Inter({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-body",
   display: "swap",
 });
 
-const serif = Space_Grotesk({
+const display = Space_Grotesk({
   subsets: ["latin"],
-  variable: "--font-serif",
+  variable: "--font-display",
   display: "swap",
 });
 
@@ -49,7 +51,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${sans.variable} ${serif.variable}`}>
+    <html lang="en" className={`${body.variable} ${display.variable}`}>
       <body>{children}</body>
     </html>
   );

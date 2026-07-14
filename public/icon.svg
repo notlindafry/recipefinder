@@ -1,7 +1,7 @@
-<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="recipefinder app icon (full-bleed, maskable): a magnifying glass">
+<svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="book-finder app icon (full-bleed, maskable): a magnifying glass">
   <rect width="512" height="512" fill="#1D231C"/>
-  <g fill="none" stroke="#7D9B83" stroke-linecap="round">
-    <circle cx="222" cy="222" r="118" stroke-width="34"/>
-    <line x1="310" y1="310" x2="408" y2="408" stroke-width="46"/>
+  <g fill="none" stroke="#7D9B83" stroke-width="28" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="226" cy="226" r="118"/>
+    <line x1="309" y1="309" x2="398" y2="398"/>
   </g>
 </svg>
