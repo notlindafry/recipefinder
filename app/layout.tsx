@@ -20,7 +20,7 @@ const display = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Linda's Cookbook Collection Search",
+  title: "cookbook-finder",
   description:
     "Search Linda's cookbook collection in plain English — find recipes by dish, ingredient, cuisine, or mood.",
   manifest: "/manifest.webmanifest",
