@@ -265,13 +265,25 @@ export default function Home() {
         <p>Search Linda&apos;s cookbook collection in plain English.</p>
 
         <form className="search" onSubmit={onSubmit}>
-          <input
-            type="text"
-            placeholder="e.g. a cozy soup with chicken and pasta, or 4 course Persian dinner with eggplant"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            aria-label="Search recipes"
-          />
+          <div className="search-field">
+            <input
+              type="text"
+              placeholder="e.g. a cozy soup with chicken and pasta, or 4 course Persian dinner with eggplant"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              aria-label="Search recipes"
+            />
+            {query && (
+              <button
+                type="button"
+                className="search-clear"
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+              >
+                ×
+              </button>
+            )}
+          </div>
           <button type="submit" disabled={loading}>
             {loading ? "Searching…" : "Search"}
           </button>

@@ -96,15 +96,48 @@ form.search {
   margin-top: 22px;
 }
 
+.search-field {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+}
+
 .search input[type="text"] {
   flex: 1;
   min-width: 0;
-  padding: 15px 18px;
+  padding: 15px 42px 15px 18px;
   border: 1px solid var(--border-strong);
   border-radius: 14px;
   background: var(--surface);
   color: var(--text);
   outline: none;
+}
+
+.search button.search-clear {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--accent);
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.search button.search-clear:hover {
+  background: transparent;
+  color: color-mix(in srgb, var(--accent), var(--text-strong) 20%);
 }
 
 .search input[type="text"]::placeholder {
